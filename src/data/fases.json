@@ -1,0 +1,77 @@
+[
+  {
+    "id": "1-1",
+    "capitulo": 1,
+    "numero": 1,
+    "poderRecomendado": 8,
+    "calmaMax": 10,
+    "capimVitoria": 14,
+    "spawns": [
+      { "tempo": 1.5, "tipo": "piranha_afobada", "quantidade": 3, "intervalo": 1.1 },
+      { "tempo": 12, "tipo": "piranha_afobada", "quantidade": 4, "intervalo": 0.9 },
+      { "tempo": 24, "tipo": "piranha_afobada", "quantidade": 5, "intervalo": 0.8 }
+    ]
+  },
+  {
+    "id": "1-2",
+    "capitulo": 1,
+    "numero": 2,
+    "poderRecomendado": 14,
+    "calmaMax": 10,
+    "capimVitoria": 18,
+    "spawns": [
+      { "tempo": 1.5, "tipo": "piranha_afobada", "quantidade": 4, "intervalo": 0.9 },
+      { "tempo": 11, "tipo": "marimbondo", "quantidade": 2, "intervalo": 1.4 },
+      { "tempo": 21, "tipo": "piranha_afobada", "quantidade": 5, "intervalo": 0.8 },
+      { "tempo": 31, "tipo": "marimbondo", "quantidade": 3, "intervalo": 1.2 }
+    ]
+  },
+  {
+    "id": "1-3",
+    "capitulo": 1,
+    "numero": 3,
+    "poderRecomendado": 20,
+    "calmaMax": 12,
+    "capimVitoria": 22,
+    "spawns": [
+      { "tempo": 1.5, "tipo": "piranha_afobada", "quantidade": 5, "intervalo": 0.8 },
+      { "tempo": 11, "tipo": "marimbondo", "quantidade": 3, "intervalo": 1.2 },
+      { "tempo": 22, "tipo": "piranha_afobada", "quantidade": 6, "intervalo": 0.7 },
+      { "tempo": 33, "tipo": "marimbondo", "quantidade": 4, "intervalo": 1.1 },
+      { "tempo": 43, "tipo": "piranha_afobada", "quantidade": 6, "intervalo": 0.6 }
+    ]
+  },
+  {
+    "id": "1-4",
+    "capitulo": 1,
+    "numero": 4,
+    "poderRecomendado": 28,
+    "calmaMax": 12,
+    "capimVitoria": 26,
+    "spawns": [
+      { "tempo": 1.5, "tipo": "piranha_afobada", "quantidade": 6, "intervalo": 0.7 },
+      { "tempo": 12, "tipo": "marimbondo", "quantidade": 4, "intervalo": 1.1 },
+      { "tempo": 23, "tipo": "celular_surto", "quantidade": 1, "intervalo": 1 },
+      { "tempo": 31, "tipo": "piranha_afobada", "quantidade": 6, "intervalo": 0.6 },
+      { "tempo": 41, "tipo": "marimbondo", "quantidade": 4, "intervalo": 1 },
+      { "tempo": 51, "tipo": "celular_surto", "quantidade": 1, "intervalo": 1 }
+    ]
+  },
+  {
+    "id": "1-5",
+    "capitulo": 1,
+    "numero": 5,
+    "poderRecomendado": 36,
+    "calmaMax": 14,
+    "capimVitoria": 32,
+    "spawns": [
+      { "tempo": 1.5, "tipo": "piranha_afobada", "quantidade": 7, "intervalo": 0.6 },
+      { "tempo": 11, "tipo": "marimbondo", "quantidade": 5, "intervalo": 0.9 },
+      { "tempo": 22, "tipo": "celular_surto", "quantidade": 2, "intervalo": 2 },
+      { "tempo": 33, "tipo": "piranha_afobada", "quantidade": 8, "intervalo": 0.55 },
+      { "tempo": 44, "tipo": "marimbondo", "quantidade": 5, "intervalo": 0.85 },
+      { "tempo": 54, "tipo": "celular_surto", "quantidade": 2, "intervalo": 1.8 },
+      { "tempo": 64, "tipo": "piranha_afobada", "quantidade": 8, "intervalo": 0.5 }
+    ]
+  }
+]

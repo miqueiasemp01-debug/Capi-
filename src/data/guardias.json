@@ -1,0 +1,38 @@
+[
+  {
+    "id": "boiadeira",
+    "nome": "Boiadeira",
+    "raridade": "comum",
+    "anguloGrau": 205,
+    "danoBase": 3,
+    "cadenciaS": 0.9,
+    "alcance": 210,
+    "ataque": "Laço: dano focado no inimigo mais próximo",
+    "cor": "#d9843b",
+    "habilidade": {
+      "nome": "Laço Firme",
+      "tipo": "imobilizar_forte",
+      "recargaS": 10,
+      "duracaoS": 3,
+      "descricao": "Laça e imobiliza o inimigo mais forte por 3s"
+    }
+  },
+  {
+    "id": "sonequinha",
+    "nome": "Sonequinha",
+    "raridade": "comum",
+    "anguloGrau": 335,
+    "danoBase": 2.5,
+    "cadenciaS": 0.8,
+    "alcance": 190,
+    "ataque": "Bocejo: dano leve que deixa o inimigo lento",
+    "cor": "#9b7bd4",
+    "habilidade": {
+      "nome": "Soninho",
+      "tipo": "sono_area",
+      "recargaS": 14,
+      "duracaoS": 2,
+      "descricao": "Sono em área: para os inimigos perto da Capi por 2s"
+    }
+  }
+]
