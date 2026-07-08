@@ -10,7 +10,19 @@ import {
   nivelDaGuardia,
   poderDaEquipe,
 } from "../game/economia";
-import { desenharBotao, dentroDoBotao, tracarRetanguloArredondado, type Botao } from "../game/ui";
+import { imagem } from "../game/imagens";
+import { desenharPilulaRecurso } from "../game/icones";
+import { mostrarToast, desenharToasts } from "../game/toasts";
+import {
+  CORES_RARIDADE,
+  desenharBadge,
+  desenharBotao,
+  desenharRetrato,
+  dentroDoBotao,
+  registrarPressao,
+  tracarRetanguloArredondado,
+  type Botao,
+} from "../game/ui";
 import { t, type ChaveTexto } from "../i18n/textos";
 
 const NOME_ESTAGIO: Record<string, ChaveTexto> = {
@@ -22,16 +34,26 @@ const NOME_ESTAGIO: Record<string, ChaveTexto> = {
 export class CenaEquipe implements Cena {
   private botoes: Botao[] = [];
   private faseSelecionada: number;
+  private tempo = 0;
+  private fundo: CanvasGradient | null = null;
 
   constructor(private readonly jogo: Jogo) {
     this.faseSelecionada = Math.min(jogo.dados.faseMaxima + 1, FASES.length);
+    if (!jogo.dados.tutoriais["evoluir"] && jogo.dados.faseMaxima >= 1) {
+      mostrarToast(t("tutorial_evoluir"));
+      jogo.dados.tutoriais["evoluir"] = true;
+      jogo.salvar();
+    }
   }
 
-  atualizar(_dt: number): void {}
+  atualizar(dt: number): void {
+    this.tempo += dt;
+  }
 
   aoTocar(x: number, y: number): void {
     for (const botao of this.botoes) {
       if (!dentroDoBotao(botao, x, y)) continue;
+      registrarPressao(botao.acao);
       this.executar(botao.acao);
       return;
     }
@@ -70,45 +92,70 @@ export class CenaEquipe implements Cena {
     this.botoes = [];
     const dados = this.jogo.dados;
 
-    const gradiente = ctx.createLinearGradient(0, 0, 0, ALTURA);
-    gradiente.addColorStop(0, "#14503a");
-    gradiente.addColorStop(1, "#0b3d2e");
-    ctx.fillStyle = gradiente;
+    if (!this.fundo) {
+      this.fundo = ctx.createLinearGradient(0, 0, 0, ALTURA);
+      this.fundo.addColorStop(0, "#14503a");
+      this.fundo.addColorStop(1, "#0b3d2e");
+    }
+    ctx.fillStyle = this.fundo;
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
-    // cabeçalho
+    // cabeçalho: título + moedas
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = "800 24px system-ui, sans-serif";
-    ctx.fillText(t("equipe_titulo"), 18, 40);
+    ctx.fillText(t("equipe_titulo"), 18, 36);
 
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#9fdf8f";
-    ctx.font = "700 19px system-ui, sans-serif";
-    ctx.fillText(`🌿 ${dados.capim}`, LARGURA - 18, 40);
+    desenharPilulaRecurso(ctx, LARGURA - 14, 34, "capim", dados.capim);
+    desenharPilulaRecurso(ctx, LARGURA - 110, 34, "gema", dados.gemas);
 
+    // capítulo + barra de progresso da campanha com estrela
     ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
     ctx.font = "500 13px system-ui, sans-serif";
-    ctx.fillText(t("equipe_capitulo"), 18, 64);
+    ctx.fillText(t("equipe_capitulo"), 18, 62);
+    this.desenharProgressoCampanha(ctx, 18, 76);
 
-    this.desenharCartaoDaFase(ctx, 18, 84);
-    this.desenharSeletorDeFases(ctx, 18, 218);
-    this.desenharCartaoDoToque(ctx, 18, 300);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[0], 18, 402);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[1], 18, 504);
+    this.desenharCartaoDaFase(ctx, 18, 96);
+    this.desenharSeletorDeFases(ctx, 18, 216);
+    this.desenharCartaoDoToque(ctx, 18, 288);
+    this.desenharCartaoDaGuardia(ctx, GUARDIAS[0], 18, 386);
+    this.desenharCartaoDaGuardia(ctx, GUARDIAS[1], 18, 486);
 
-    const jogar: Botao = { x: 40, y: 640, w: LARGURA - 80, h: 58, acao: "jogar" };
+    const jogar: Botao = { x: 40, y: 636, w: LARGURA - 80, h: 58, acao: "jogar" };
     desenharBotao(ctx, jogar, `${t("equipe_jogar")} 1-${this.faseSelecionada} ▶`, {
       cor: "#3d9c63",
       tamanhoFonte: 20,
     });
     this.botoes.push(jogar);
 
-    const voltar: Botao = { x: 40, y: 712, w: LARGURA - 80, h: 36, acao: "titulo" };
+    const voltar: Botao = { x: 40, y: 708, w: LARGURA - 80, h: 38, acao: "titulo" };
     desenharBotao(ctx, voltar, t("botao_voltar"), { cor: "#1d5c3e", tamanhoFonte: 14 });
     this.botoes.push(voltar);
+
+    desenharToasts(ctx, 600);
+  }
+
+  private desenharProgressoCampanha(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const dados = this.jogo.dados;
+    const largura = 190;
+    tracarRetanguloArredondado(ctx, x, y, largura, 10, 5);
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fill();
+    const progresso = Math.min(1, dados.faseMaxima / FASES.length);
+    if (progresso > 0.02) {
+      tracarRetanguloArredondado(ctx, x, y, largura * progresso, 10, 5);
+      ctx.fillStyle = "#ffd166";
+      ctx.fill();
+    }
+    ctx.textAlign = "left";
+    ctx.font = "400 15px system-ui, sans-serif";
+    ctx.fillStyle = "#ffd166";
+    ctx.fillText("★", x + largura + 6, y + 5);
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(`${t("fase_rotulo")} ${dados.faseMaxima}/${FASES.length}`, x + largura + 26, y + 6);
   }
 
   private desenharCartaoDaFase(ctx: CanvasRenderingContext2D, x: number, y: number): void {
@@ -124,24 +171,24 @@ export class CenaEquipe implements Cena {
           : "equipe_dica_poder_muito_baixo";
 
     const w = LARGURA - 36;
-    tracarRetanguloArredondado(ctx, x, y, w, 118, 16);
+    tracarRetanguloArredondado(ctx, x, y, w, 110, 16);
     ctx.fillStyle = "rgba(0,0,0,0.28)";
     ctx.fill();
 
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = "800 19px system-ui, sans-serif";
-    ctx.fillText(`${t("fase_rotulo")} 1-${this.faseSelecionada}`, x + 16, y + 28);
+    ctx.fillText(`${t("fase_rotulo")} 1-${this.faseSelecionada}`, x + 16, y + 26);
 
     ctx.font = "600 15px system-ui, sans-serif";
     ctx.fillStyle = cor;
-    ctx.fillText(`${t("equipe_poder")}: ${poder}`, x + 16, y + 58);
+    ctx.fillText(`${t("equipe_poder")}: ${poder}`, x + 16, y + 54);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillText(`${t("equipe_recomendado")}: ${fase.poderRecomendado}`, x + 16, y + 80);
+    ctx.fillText(`${t("equipe_recomendado")}: ${fase.poderRecomendado}`, x + 16, y + 76);
 
     ctx.fillStyle = cor;
     ctx.font = "500 12px system-ui, sans-serif";
-    ctx.fillText(t(dica), x + 16, y + 103);
+    ctx.fillText(t(dica), x + 16, y + 97);
   }
 
   private desenharSeletorDeFases(ctx: CanvasRenderingContext2D, x: number, y: number): void {
@@ -156,6 +203,9 @@ export class CenaEquipe implements Cena {
       const selecionada = fase.numero === this.faseSelecionada;
 
       const chip: Botao = { x: chipX, y, w: larguraChip, h: 58, acao: `sel:${fase.numero}` };
+      tracarRetanguloArredondado(ctx, chip.x, chip.y + 3, chip.w, chip.h, 12);
+      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fill();
       tracarRetanguloArredondado(ctx, chip.x, chip.y, chip.w, chip.h, 12);
       ctx.fillStyle = selecionada ? "#3d9c63" : desbloqueada ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.35)";
       ctx.fill();
@@ -191,23 +241,26 @@ export class CenaEquipe implements Cena {
 
   private botaoEvoluir(ctx: CanvasRenderingContext2D, y: number, acao: string, custo: number): void {
     const podePagar = this.jogo.dados.capim >= custo;
-    const botao: Botao = { x: LARGURA - 148, y: y + 24, w: 118, h: 44, acao };
-    desenharBotao(ctx, botao, `${t("equipe_evoluir")} ${custo}🌿`, {
+    const botao: Botao = { x: LARGURA - 148, y: y + 22, w: 118, h: 46, acao };
+    desenharBotao(ctx, botao, `${t("equipe_evoluir")} ${custo}`, {
       cor: podePagar ? "#3d9c63" : "#33524a",
       desativado: !podePagar,
       tamanhoFonte: 14,
+      icone: "capim",
     });
     if (podePagar) this.botoes.push(botao);
   }
 
   private desenharCartaoDoToque(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     const dados = this.jogo.dados;
+    const custo = custoEvoluirToque(dados.toqueNivel);
     this.cartaoBase(ctx, x, y, 88);
 
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffd166";
     ctx.font = "700 17px system-ui, sans-serif";
     ctx.fillText(`👆 ${t("equipe_toque_de_calma")}`, x + 16, y + 28);
+    if (dados.capim >= custo) desenharBadge(ctx, x + 8, y + 8, this.tempo);
 
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.font = "500 14px system-ui, sans-serif";
@@ -217,7 +270,7 @@ export class CenaEquipe implements Cena {
       y + 56,
     );
 
-    this.botaoEvoluir(ctx, y, "evoluir:toque", custoEvoluirToque(dados.toqueNivel));
+    this.botaoEvoluir(ctx, y, "evoluir:toque", custo);
   }
 
   private desenharCartaoDaGuardia(
@@ -228,35 +281,42 @@ export class CenaEquipe implements Cena {
   ): void {
     const dados = this.jogo.dados;
     const nivel = nivelDaGuardia(dados, guardia.id);
-    this.cartaoBase(ctx, x, y, 88);
+    const custo = custoEvoluirGuardia(nivel);
+    const podeEvoluir = dados.capim >= custo;
+    this.cartaoBase(ctx, x, y, 90);
 
-    ctx.beginPath();
-    ctx.arc(x + 30, y + 44, 17, 0, Math.PI * 2);
-    ctx.fillStyle = guardia.cor;
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "800 15px system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(guardia.nome[0], x + 30, y + 45);
+    // retrato com moldura da raridade + badge de evolução
+    desenharRetrato(
+      ctx,
+      imagem(`retrato-${guardia.id}`),
+      CORES_RARIDADE[guardia.raridade],
+      guardia.cor,
+      guardia.nome[0],
+      x + 12,
+      y + 15,
+      60,
+    );
+    if (podeEvoluir) desenharBadge(ctx, x + 70, y + 18, this.tempo);
 
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 17px system-ui, sans-serif";
-    ctx.fillText(guardia.nome, x + 58, y + 28);
+    ctx.fillText(guardia.nome, x + 84, y + 26);
 
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.font = "500 13px system-ui, sans-serif";
     ctx.fillText(
       `${t(NOME_ESTAGIO[estagioDaGuardia(nivel)])} · ${t("equipe_nivel")} ${nivel} · ${t("equipe_dano")} ${danoDaGuardia(guardia, nivel).toFixed(1)}`,
-      x + 58,
-      y + 52,
+      x + 84,
+      y + 50,
+      132,
     );
 
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     ctx.font = "400 11px system-ui, sans-serif";
-    const ataque = guardia.ataque.length > 34 ? `${guardia.ataque.slice(0, 33)}…` : guardia.ataque;
-    ctx.fillText(ataque, x + 58, y + 72);
+    const ataque = guardia.ataque.length > 30 ? `${guardia.ataque.slice(0, 29)}…` : guardia.ataque;
+    ctx.fillText(ataque, x + 84, y + 72, 132);
 
-    this.botaoEvoluir(ctx, y, `evoluir:${guardia.id}`, custoEvoluirGuardia(nivel));
+    this.botaoEvoluir(ctx, y, `evoluir:${guardia.id}`, custo);
   }
 }

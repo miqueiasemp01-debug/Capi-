@@ -2,6 +2,7 @@
   "titulo_jogo": "Capivara Impossível",
   "titulo_subtitulo": "Defesa Zen",
   "titulo_toque": "Toque para começar",
+  "carregando": "Carregando…",
   "equipe_titulo": "Sua Equipe",
   "equipe_capitulo": "Capítulo 1 — Pantanal",
   "equipe_poder": "Seu poder",
@@ -20,6 +21,8 @@
   "fase_rotulo": "Fase",
   "hud_calma": "Calma",
   "hud_combo": "Combo",
+  "missao_objetivo": "Acalme a lagoa",
+  "missao_concluida": "CONCLUÍDA",
   "fase_vitoria": "Calma restaurada!",
   "fase_derrota": "A Calma acabou...",
   "fase_derrota_dica": "Travou? Fortaleça a equipe e volte.",
@@ -27,5 +30,8 @@
   "botao_evoluir": "EVOLUIR",
   "botao_continuar": "Continuar",
   "botao_repetir": "Repetir fase",
-  "botao_voltar": "Voltar"
+  "botao_voltar": "Voltar",
+  "tutorial_toque": "Toque nos afobados para acalmá-los! 👆",
+  "tutorial_habilidade": "Botões embaixo: habilidades das guardiãs!",
+  "tutorial_evoluir": "Junte capim e evolua pra ficar mais forte!"
 }

@@ -87,6 +87,8 @@ console.log("Capivara Impossível — simulador de balanceamento\n");
 for (let nivel = 1; nivel <= 5; nivel++) {
   const dadosSim: SaveData = {
     capim: 0,
+    gemas: 0,
+    tutoriais: {},
     toqueNivel: nivel,
     guardiaNiveis: Object.fromEntries(GUARDIAS.map((g) => [g.id, nivel])),
     faseMaxima: 0,

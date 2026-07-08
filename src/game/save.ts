@@ -5,10 +5,12 @@ const CHAVE = "capivara-impossivel:save:v1";
 function savePadrao(): SaveData {
   return {
     capim: 0,
+    gemas: 0,
     toqueNivel: 1,
     guardiaNiveis: {},
     faseMaxima: 0,
     estrelas: {},
+    tutoriais: {},
   };
 }
 

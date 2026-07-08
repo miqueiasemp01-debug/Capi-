@@ -56,8 +56,10 @@ export interface FaseDef {
 
 export interface SaveData {
   capim: number;
+  gemas: number;
   toqueNivel: number;
   guardiaNiveis: Record<string, number>;
   faseMaxima: number;
   estrelas: Record<string, number>;
+  tutoriais: Record<string, boolean>;
 }
