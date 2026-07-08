@@ -1,6 +1,7 @@
 import { Motor } from "./game/motor";
 import { save } from "./game/save";
 import type { Destino, Jogo } from "./game/contexto";
+import { CenaSplash } from "./scenes/splash";
 import { CenaTitulo } from "./scenes/titulo";
 import { CenaEquipe } from "./scenes/equipe";
 import { CenaFase } from "./scenes/fase";
@@ -22,5 +23,5 @@ const jogo: Jogo = {
   },
 };
 
-jogo.irPara({ tela: "titulo" });
+motor.trocarCena(new CenaSplash(jogo));
 motor.iniciar();
