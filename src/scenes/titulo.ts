@@ -15,7 +15,7 @@ export class CenaTitulo implements Cena {
   }
 
   aoTocar(_x: number, _y: number): void {
-    this.jogo.irPara({ tela: "equipe" });
+    this.jogo.irPara({ tela: "mapa" });
   }
 
   desenhar(ctx: CanvasRenderingContext2D): void {

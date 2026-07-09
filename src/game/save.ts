@@ -7,10 +7,13 @@ function savePadrao(): SaveData {
     capim: 0,
     gemas: 0,
     toqueNivel: 1,
+    capiAtaqueNivel: 1,
+    capiCalmaNivel: 1,
     guardiaNiveis: {},
     faseMaxima: 0,
     estrelas: {},
     tutoriais: {},
+    mute: false,
   };
 }
 
