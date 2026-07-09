@@ -7,6 +7,11 @@ const MULTIPLICADOR_RARIDADE: Record<Raridade, number> = {
   lendaria: 3.2,
 };
 
+// Crescimento multiplicativo: cada nível de guardiã = +50% de dano,
+// cada nível do Toque = +40%. É isso que faz a evolução "se sentir".
+export const GANHO_GUARDIA = 1.5;
+export const GANHO_TOQUE = 1.4;
+
 export function nivelDaGuardia(dados: SaveData, guardiaId: string): number {
   return dados.guardiaNiveis[guardiaId] ?? 1;
 }
@@ -19,23 +24,26 @@ export function estagioDaGuardia(nivel: number): "filhote" | "adulta" | "plena" 
 }
 
 export function danoDaGuardia(guardia: GuardiaDef, nivel: number): number {
-  return guardia.danoBase * (1 + 0.3 * (nivel - 1));
-}
-
-export function valorDeCombate(guardia: GuardiaDef, nivel: number): number {
-  return danoDaGuardia(guardia, nivel) * nivel * MULTIPLICADOR_RARIDADE[guardia.raridade];
+  return guardia.danoBase * GANHO_GUARDIA ** (nivel - 1);
 }
 
 export function danoDoToque(nivel: number): number {
-  return 2 + (nivel - 1);
+  return 2 * GANHO_TOQUE ** (nivel - 1);
 }
 
+// Custos crescem mais rápido que o dano (1.9 > 1.5): cada evolução pede
+// mais fases jogadas — a régua de "2 dias por desejo" do plano.
 export function custoEvoluirGuardia(nivelAtual: number): number {
-  return 10 * nivelAtual;
+  return Math.round(25 * 1.9 ** (nivelAtual - 1));
 }
 
 export function custoEvoluirToque(nivelAtual: number): number {
-  return 12 * nivelAtual;
+  return Math.round(30 * 1.9 ** (nivelAtual - 1));
+}
+
+export function valorDeCombate(guardia: GuardiaDef, nivel: number): number {
+  // DPS efetivo ponderado pela raridade
+  return (danoDaGuardia(guardia, nivel) / guardia.cadenciaS) * MULTIPLICADOR_RARIDADE[guardia.raridade];
 }
 
 // A régua central do jogo: é este número que o jogador compara com o
@@ -45,5 +53,5 @@ export function poderDaEquipe(guardias: GuardiaDef[], dados: SaveData): number {
     (soma, g) => soma + valorDeCombate(g, nivelDaGuardia(dados, g.id)),
     0,
   );
-  return Math.round(somaGuardias + dados.toqueNivel * 4);
+  return Math.round(somaGuardias + danoDoToque(dados.toqueNivel) * 2);
 }
