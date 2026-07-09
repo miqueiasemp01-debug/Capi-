@@ -1,0 +1,77 @@
+{
+  "_comentario": "Curva mestre da geração procedural. Tudo cresce por fórmula pra suportar 100+ fases sem editar dados. Ajuste aqui e recalibre no simulador.",
+  "poderBase": 8,
+  "poderCrescimento": 1.12,
+  "calmaBase": 10,
+  "calmaCrescimentoPor10": 2,
+  "duracaoBaseS": 40,
+  "duracaoCrescPor10": 1,
+  "duracaoMaxS": 75,
+  "orcamentoBasePorMinuto": 238,
+  "orcamentoCrescPor10Pct": 15,
+  "capimBase": 14,
+  "capimCrescimento": 1.135,
+  "chefeBonusCapim": 3,
+  "chefeGemasBase": 5,
+  "chefeGemasCrescPor10": 3,
+  "mixPorTrecho": [
+    {
+      "ateFase": 20,
+      "pesos": {
+        "piranha_afobada": 72,
+        "marimbondo": 24,
+        "celular_surto": 4
+      }
+    },
+    {
+      "ateFase": 40,
+      "pesos": {
+        "piranha_afobada": 52,
+        "marimbondo": 33,
+        "celular_surto": 15
+      }
+    },
+    {
+      "ateFase": 60,
+      "pesos": {
+        "piranha_afobada": 42,
+        "marimbondo": 33,
+        "celular_surto": 25
+      }
+    },
+    {
+      "ateFase": 9999,
+      "pesos": {
+        "piranha_afobada": 36,
+        "marimbondo": 32,
+        "celular_surto": 32
+      }
+    }
+  ],
+  "biomas": [
+    {
+      "ateCapitulo": 1,
+      "id": "pantanal",
+      "nome": "Pantanal",
+      "cor": "#1d6b52"
+    },
+    {
+      "ateCapitulo": 2,
+      "id": "cidade",
+      "nome": "Cidade",
+      "cor": "#3a5068"
+    },
+    {
+      "ateCapitulo": 3,
+      "id": "carnaval",
+      "nome": "Carnaval",
+      "cor": "#7a3a68"
+    },
+    {
+      "ateCapitulo": 9999,
+      "id": "espaco",
+      "nome": "Espaço",
+      "cor": "#2a2a55"
+    }
+  ]
+}
