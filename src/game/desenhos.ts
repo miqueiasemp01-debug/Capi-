@@ -114,25 +114,80 @@ function faseDoBob(id: string): number {
   return fase;
 }
 
-// Guardiã: sprite balançando na água, ou procedural na vitória-régia.
+export type Estagio = "filhote" | "adulta" | "plena";
+
+const ALTURA_POR_ESTAGIO: Record<Estagio, number> = { filhote: 54, adulta: 63, plena: 72 };
+
+// Estrela de 5 pontas (celebrações, acessórios de estágio).
+export function desenharEstrela(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  raio: number,
+  cor: string,
+  rotacao = 0,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotacao);
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? raio : raio * 0.45;
+    const angulo = (i * Math.PI) / 5 - Math.PI / 2;
+    ctx.lineTo(Math.cos(angulo) * r, Math.sin(angulo) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = cor;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, raio * 0.16);
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(120, 70, 0, 0.55)";
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Guardiã: sprite balançando na água; cresce e ganha acessórios por estágio
+// (Filhote → Adulta: estrela; → Plena: aura dourada + duas estrelas).
 export function desenharGuardia(
   ctx: CanvasRenderingContext2D,
   def: GuardiaDef,
   x: number,
   y: number,
   tempo: number,
+  estagio: Estagio = "filhote",
 ): void {
   const sprite = imagem(def.id);
   if (sprite) {
     const bob = Math.sin(tempo * 2 + faseDoBob(def.id)) * 2;
-    const altura = 58;
+    const altura = ALTURA_POR_ESTAGIO[estagio];
     const largura = altura * (sprite.naturalWidth / sprite.naturalHeight);
-    sombraNaAgua(ctx, x, y + 26, 24);
-    ctx.drawImage(sprite, x - largura / 2, y - altura + 22 + bob, largura, altura);
+    const topo = y - altura + 22 + bob;
+
+    if (estagio === "plena") {
+      const brilho = 0.22 + 0.1 * Math.sin(tempo * 3);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y + 4, altura * 0.62, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 214, 102, ${brilho})`;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    sombraNaAgua(ctx, x, y + 26, altura * 0.42);
+    ctx.drawImage(sprite, x - largura / 2, topo, largura, altura);
+
+    if (estagio !== "filhote") {
+      const flutuacao = Math.sin(tempo * 2.4 + faseDoBob(def.id)) * 2;
+      desenharEstrela(ctx, x + largura * 0.42, topo + flutuacao + 2, 6, "#ffd166", 0.2);
+      if (estagio === "plena") {
+        desenharEstrela(ctx, x - largura * 0.42, topo + 6 - flutuacao, 5, "#ffd166", -0.25);
+      }
+    }
     return;
   }
 
-  // ---- fallback procedural (Sessão 1) ----
+  // ---- fallback procedural (Sessão 1), com estágio no tamanho ----
+  const raioCorpo = estagio === "plena" ? 19 : estagio === "adulta" ? 17 : 15;
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y + 10, 26, 0, Math.PI * 2);
@@ -146,7 +201,7 @@ export function desenharGuardia(
   ctx.fill();
 
   ctx.beginPath();
-  ctx.arc(x, y, 15, 0, Math.PI * 2);
+  ctx.arc(x, y, raioCorpo, 0, Math.PI * 2);
   ctx.fillStyle = def.cor;
   ctx.fill();
   ctx.lineWidth = 2.5;
@@ -158,6 +213,8 @@ export function desenharGuardia(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(def.nome[0], x, y + 1);
+  if (estagio !== "filhote") desenharEstrela(ctx, x + raioCorpo, y - raioCorpo, 5, "#ffd166");
+  if (estagio === "plena") desenharEstrela(ctx, x - raioCorpo, y - raioCorpo, 5, "#ffd166");
   ctx.restore();
 }
 

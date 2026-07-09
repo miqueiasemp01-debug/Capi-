@@ -2,7 +2,7 @@ import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import type { FaseDef, GuardiaDef, InimigoDef } from "../game/tipos";
 import { GUARDIAS, fasePorId, inimigoPorId } from "../game/conteudo";
-import { danoDaGuardia, danoDoToque, nivelDaGuardia } from "../game/economia";
+import { danoDaGuardia, danoDoToque, estagioDaGuardia, nivelDaGuardia } from "../game/economia";
 import { desenharCapi, desenharGuardia, desenharImagemCobrindo, desenharInimigo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharIconeCapim, desenharPilulaRecurso } from "../game/icones";
@@ -48,6 +48,7 @@ interface EventoSpawn {
 interface GuardiaEmCampo {
   def: GuardiaDef;
   nivel: number;
+  estagio: "filhote" | "adulta" | "plena";
   x: number;
   y: number;
   proximoAtaque: number;
@@ -62,6 +63,7 @@ interface Raio {
   y1: number;
   cor: string;
   fim: number;
+  largura: number;
 }
 
 interface Flutuante {
@@ -71,6 +73,7 @@ interface Flutuante {
   nasceu: number;
   cor: string;
   comIconeCapim?: boolean;
+  tamanho?: number;
 }
 
 interface Onda {
@@ -132,9 +135,11 @@ export class CenaFase implements Cena {
 
     this.guardias = GUARDIAS.map((def, indice) => {
       const rad = (def.anguloGrau * Math.PI) / 180;
+      const nivel = nivelDaGuardia(jogo.dados, def.id);
       return {
         def,
-        nivel: nivelDaGuardia(jogo.dados, def.id),
+        nivel,
+        estagio: estagioDaGuardia(nivel),
         x: CENTRO_X + Math.cos(rad) * RAIO_GUARDIAS,
         y: CENTRO_Y + Math.sin(rad) * RAIO_GUARDIAS,
         proximoAtaque: 0,
@@ -261,6 +266,8 @@ export class CenaFase implements Cena {
       if (!alvo) continue;
 
       guardia.proximoAtaque = this.tempo + guardia.def.cadenciaS;
+      // projétil engrossa com o estágio: a evolução aparece no tiro
+      const largura = guardia.estagio === "plena" ? 6 : guardia.estagio === "adulta" ? 4.5 : 3;
       this.raios.push({
         x0: guardia.x,
         y0: guardia.y - 14,
@@ -268,15 +275,29 @@ export class CenaFase implements Cena {
         y1: alvo.y,
         cor: guardia.def.cor,
         fim: this.tempo + 0.15,
+        largura,
       });
       if (guardia.def.id === "sonequinha") alvo.lentoAte = this.tempo + 1;
-      this.causarDano(alvo, danoDaGuardia(guardia.def, guardia.nivel));
+      this.causarDano(alvo, danoDaGuardia(guardia.def, guardia.nivel), "guardia");
     }
   }
 
-  private causarDano(inimigo: Inimigo, dano: number): void {
+  private causarDano(inimigo: Inimigo, dano: number, origem: "toque" | "guardia"): void {
     inimigo.hp -= dano;
     inimigo.atingidoEm = this.tempo;
+
+    // número de dano: cresce com o valor; combo alto vira "crítico" laranja
+    const critico = origem === "toque" && this.combo >= 4;
+    const base = origem === "toque" ? 15 : 12;
+    this.flutuantes.push({
+      texto: `${Math.max(1, Math.round(dano))}`,
+      x: inimigo.x + (Math.random() * 16 - 8),
+      y: inimigo.y - inimigo.def.raio - 6,
+      nasceu: this.tempo,
+      cor: critico ? "#ff9d3c" : origem === "toque" ? "#ffd166" : "#f2f7f2",
+      tamanho: Math.min(34, base + dano * 0.9 + (critico ? 5 : 0)),
+    });
+
     if (inimigo.hp <= 0 && inimigo.estado === "nadando") this.adormecer(inimigo);
   }
 
@@ -392,7 +413,7 @@ export class CenaFase implements Cena {
     const bonus = 1 + 0.12 * Math.min(this.combo - 1, 10);
     const dano = danoDoToque(this.jogo.dados.toqueNivel) * bonus;
     this.ondas.push({ x: alvo.x, y: alvo.y, nasceu: this.tempo, cor: "rgba(255,235,170,0.9)" });
-    this.causarDano(alvo, dano);
+    this.causarDano(alvo, dano, "toque");
   }
 
   private usarHabilidade(guardia: GuardiaEmCampo): void {
@@ -436,13 +457,13 @@ export class CenaFase implements Cena {
     this.desenharLago(ctx);
 
     for (const guardia of this.guardias) {
-      desenharGuardia(ctx, guardia.def, guardia.x, guardia.y, this.tempo);
+      desenharGuardia(ctx, guardia.def, guardia.x, guardia.y, this.tempo, guardia.estagio);
     }
     desenharCapi(ctx, CENTRO_X, CENTRO_Y, RAIO_CAPI, this.tempo);
 
     for (const raio of this.raios) {
       ctx.strokeStyle = raio.cor;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = raio.largura;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(raio.x0, raio.y0);
@@ -498,7 +519,10 @@ export class CenaFase implements Cena {
       const idade = Math.max(0, this.tempo - flutuante.nasceu);
       ctx.globalAlpha = Math.max(0, 1 - idade / 1.2);
       ctx.fillStyle = flutuante.cor;
-      ctx.font = "700 16px system-ui, sans-serif";
+      const tamanho = flutuante.tamanho ?? 16;
+      // pop de escala nos primeiros 0.15s: o número "salta" na tela
+      const pop = 1 + 0.35 * Math.max(0, 1 - idade / 0.15);
+      ctx.font = `800 ${Math.round(tamanho * pop)}px system-ui, sans-serif`;
       const yF = flutuante.y - idade * 30;
       ctx.fillText(flutuante.texto, flutuante.x, yF);
       if (flutuante.comIconeCapim) {

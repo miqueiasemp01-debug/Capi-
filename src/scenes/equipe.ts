@@ -12,6 +12,8 @@ import {
 } from "../game/economia";
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
+import { desenharEstrela } from "../game/desenhos";
+import { tocarSomConquista } from "../game/som";
 import { mostrarToast, desenharToasts } from "../game/toasts";
 import {
   CORES_RARIDADE,
@@ -31,11 +33,31 @@ const NOME_ESTAGIO: Record<string, ChaveTexto> = {
   plena: "estagio_plena",
 };
 
+const Y_CARTAO_TOQUE = 288;
+const Y_CARTOES_GUARDIA = [386, 486];
+
+// "3" e "4,5" — dano com vírgula pt-BR, sem ",0" desnecessário
+function formatarDano(valor: number): string {
+  const arredondado = Math.round(valor * 10) / 10;
+  return Number.isInteger(arredondado)
+    ? String(arredondado)
+    : arredondado.toFixed(1).replace(".", ",");
+}
+
+interface Celebracao {
+  inicio: number;
+  texto: string;
+  yCartao: number;
+  novoEstagio: boolean;
+}
+
 export class CenaEquipe implements Cena {
   private botoes: Botao[] = [];
   private faseSelecionada: number;
   private tempo = 0;
   private fundo: CanvasGradient | null = null;
+  private poderExibido = -1;
+  private celebracao: Celebracao | null = null;
 
   constructor(private readonly jogo: Jogo) {
     this.faseSelecionada = Math.min(jogo.dados.faseMaxima + 1, FASES.length);
@@ -48,6 +70,14 @@ export class CenaEquipe implements Cena {
 
   atualizar(dt: number): void {
     this.tempo += dt;
+
+    // contagem animada do poder da equipe
+    const poderReal = poderDaEquipe(GUARDIAS, this.jogo.dados);
+    if (this.poderExibido < 0) this.poderExibido = poderReal;
+    this.poderExibido += (poderReal - this.poderExibido) * Math.min(1, dt * 5);
+    if (Math.abs(poderReal - this.poderExibido) < 0.05) this.poderExibido = poderReal;
+
+    if (this.celebracao && this.tempo - this.celebracao.inicio > 1.6) this.celebracao = null;
   }
 
   aoTocar(x: number, y: number): void {
@@ -75,6 +105,7 @@ export class CenaEquipe implements Cena {
         dados.capim -= custo;
         dados.toqueNivel++;
         this.jogo.salvar();
+        this.celebrar(t("celebra_dano_toque"), Y_CARTAO_TOQUE, false);
       }
     } else if (acao.startsWith("evoluir:")) {
       const id = acao.slice(8);
@@ -84,8 +115,16 @@ export class CenaEquipe implements Cena {
         dados.capim -= custo;
         dados.guardiaNiveis[id] = nivel + 1;
         this.jogo.salvar();
+        const indice = GUARDIAS.findIndex((g) => g.id === id);
+        const novoEstagio = estagioDaGuardia(nivel + 1) !== estagioDaGuardia(nivel);
+        this.celebrar(t("celebra_dano_guardia"), Y_CARTOES_GUARDIA[indice] ?? Y_CARTAO_TOQUE, novoEstagio);
       }
     }
+  }
+
+  private celebrar(texto: string, yCartao: number, novoEstagio: boolean): void {
+    this.celebracao = { inicio: this.tempo, texto, yCartao, novoEstagio };
+    tocarSomConquista();
   }
 
   desenhar(ctx: CanvasRenderingContext2D): void {
@@ -119,9 +158,9 @@ export class CenaEquipe implements Cena {
 
     this.desenharCartaoDaFase(ctx, 18, 96);
     this.desenharSeletorDeFases(ctx, 18, 216);
-    this.desenharCartaoDoToque(ctx, 18, 288);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[0], 18, 386);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[1], 18, 486);
+    this.desenharCartaoDoToque(ctx, 18, Y_CARTAO_TOQUE);
+    this.desenharCartaoDaGuardia(ctx, GUARDIAS[0], 18, Y_CARTOES_GUARDIA[0]);
+    this.desenharCartaoDaGuardia(ctx, GUARDIAS[1], 18, Y_CARTOES_GUARDIA[1]);
 
     const jogar: Botao = { x: 40, y: 636, w: LARGURA - 80, h: 58, acao: "jogar" };
     desenharBotao(ctx, jogar, `${t("equipe_jogar")} 1-${this.faseSelecionada} ▶`, {
@@ -135,6 +174,58 @@ export class CenaEquipe implements Cena {
     this.botoes.push(voltar);
 
     desenharToasts(ctx, 600);
+    this.desenharCelebracao(ctx);
+  }
+
+  // Flash + texto gigante + estrela nova: a evolução tem que SE SENTIR.
+  private desenharCelebracao(ctx: CanvasRenderingContext2D): void {
+    const c = this.celebracao;
+    if (!c) return;
+    const idade = this.tempo - c.inicio;
+
+    // flash branco no primeiro instante
+    const flash = Math.max(0, 1 - idade / 0.3);
+    if (flash > 0) {
+      ctx.fillStyle = `rgba(255, 252, 235, ${0.6 * flash})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+
+    // texto gigante com pop de escala (overshoot) e leve inclinação
+    const entrada = Math.min(1, idade / 0.18);
+    const escala = entrada * (1 + 0.35 * Math.sin(entrada * Math.PI));
+    const saida = Math.max(0, Math.min(1, (1.6 - idade) / 0.35));
+    ctx.save();
+    ctx.globalAlpha = saida;
+    ctx.translate(LARGURA / 2, 330);
+    ctx.rotate(-0.05);
+    ctx.scale(escala, escala);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "800 36px system-ui, sans-serif";
+    ctx.lineWidth = 8;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(60, 30, 0, 0.9)";
+    ctx.strokeText(c.texto, 0, 0);
+    ctx.fillStyle = "#ffd166";
+    ctx.fillText(c.texto, 0, 0);
+    if (c.novoEstagio) {
+      ctx.font = "800 22px system-ui, sans-serif";
+      ctx.lineWidth = 6;
+      ctx.strokeText(t("celebra_estagio"), 0, 38);
+      ctx.fillStyle = "#aef29b";
+      ctx.fillText(t("celebra_estagio"), 0, 38);
+    }
+    ctx.restore();
+
+    // estrela nova estourando no cartão evoluído
+    if (c.novoEstagio) {
+      const pop = Math.min(1, idade / 0.35);
+      const raio = 16 * pop * (1 + 0.4 * Math.sin(pop * Math.PI));
+      ctx.save();
+      ctx.globalAlpha = saida;
+      desenharEstrela(ctx, 46, c.yCartao + 18, raio, "#ffd166", idade * 3);
+      ctx.restore();
+    }
   }
 
   private desenharProgressoCampanha(ctx: CanvasRenderingContext2D, x: number, y: number): void {
@@ -161,6 +252,8 @@ export class CenaEquipe implements Cena {
   private desenharCartaoDaFase(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     const fase = FASES[this.faseSelecionada - 1];
     const poder = poderDaEquipe(GUARDIAS, this.jogo.dados);
+    const poderMostrado = this.poderExibido < 0 ? poder : this.poderExibido;
+    const contando = Math.abs(poder - poderMostrado) >= 0.5;
     const proporcao = poder / fase.poderRecomendado;
     const cor = proporcao >= 1 ? "#7dd3a0" : proporcao >= 0.7 ? "#e5b74a" : "#e06a5a";
     const dica: ChaveTexto =
@@ -180,9 +273,10 @@ export class CenaEquipe implements Cena {
     ctx.font = "800 19px system-ui, sans-serif";
     ctx.fillText(`${t("fase_rotulo")} 1-${this.faseSelecionada}`, x + 16, y + 26);
 
-    ctx.font = "600 15px system-ui, sans-serif";
-    ctx.fillStyle = cor;
-    ctx.fillText(`${t("equipe_poder")}: ${poder}`, x + 16, y + 54);
+    // enquanto conta, o número pulsa maior e mais dourado
+    ctx.font = contando ? "800 17px system-ui, sans-serif" : "600 15px system-ui, sans-serif";
+    ctx.fillStyle = contando ? "#ffd166" : cor;
+    ctx.fillText(`${t("equipe_poder")}: ${Math.round(poderMostrado)}`, x + 16, y + 54);
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.fillText(`${t("equipe_recomendado")}: ${fase.poderRecomendado}`, x + 16, y + 76);
 
@@ -264,10 +358,15 @@ export class CenaEquipe implements Cena {
 
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.font = "500 14px system-ui, sans-serif";
+    ctx.fillText(`${t("equipe_nivel")} ${dados.toqueNivel}`, x + 16, y + 54);
+
+    // preview: o que a evolução compra
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.fillStyle = "#9fdf8f";
     ctx.fillText(
-      `${t("equipe_nivel")} ${dados.toqueNivel} · ${t("equipe_dano")} ${danoDoToque(dados.toqueNivel)}`,
+      `${t("equipe_dano")} ${formatarDano(danoDoToque(dados.toqueNivel))} → ${formatarDano(danoDoToque(dados.toqueNivel + 1))}`,
       x + 16,
-      y + 56,
+      y + 74,
     );
 
     this.botaoEvoluir(ctx, y, "evoluir:toque", custo);
@@ -298,24 +397,36 @@ export class CenaEquipe implements Cena {
     );
     if (podeEvoluir) desenharBadge(ctx, x + 70, y + 18, this.tempo);
 
+    // estrelas do estágio (1 a 3) sob o retrato
+    const estagio = estagioDaGuardia(nivel);
+    const totalEstrelas = estagio === "plena" ? 3 : estagio === "adulta" ? 2 : 1;
+    for (let i = 0; i < totalEstrelas; i++) {
+      desenharEstrela(ctx, x + 28 + i * 14 - (totalEstrelas - 1) * 7, y + 76, 6, "#ffd166");
+    }
+
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffffff";
     ctx.font = "700 17px system-ui, sans-serif";
-    ctx.fillText(guardia.nome, x + 84, y + 26);
+    ctx.fillText(guardia.nome, x + 84, y + 24);
 
     ctx.fillStyle = "rgba(255,255,255,0.8)";
     ctx.font = "500 13px system-ui, sans-serif";
     ctx.fillText(
-      `${t(NOME_ESTAGIO[estagioDaGuardia(nivel)])} · ${t("equipe_nivel")} ${nivel} · ${t("equipe_dano")} ${danoDaGuardia(guardia, nivel).toFixed(1)}`,
+      `${t(NOME_ESTAGIO[estagio])} · ${t("equipe_nivel")} ${nivel}`,
       x + 84,
-      y + 50,
+      y + 46,
       132,
     );
 
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "400 11px system-ui, sans-serif";
-    const ataque = guardia.ataque.length > 30 ? `${guardia.ataque.slice(0, 29)}…` : guardia.ataque;
-    ctx.fillText(ataque, x + 84, y + 72, 132);
+    // preview: o que a evolução compra
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.fillStyle = "#9fdf8f";
+    ctx.fillText(
+      `${t("equipe_dano")} ${formatarDano(danoDaGuardia(guardia, nivel))} → ${formatarDano(danoDaGuardia(guardia, nivel + 1))}`,
+      x + 84,
+      y + 68,
+      132,
+    );
 
     this.botaoEvoluir(ctx, y, `evoluir:${guardia.id}`, custo);
   }
