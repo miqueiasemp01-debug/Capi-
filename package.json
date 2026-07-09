@@ -1,0 +1,19 @@
+{
+  "name": "capivara-impossivel",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "simular": "tsx scripts/simular.ts",
+    "assets": "node scripts/gerar-assets.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.10"
+  }
+}

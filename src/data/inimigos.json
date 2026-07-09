@@ -1,0 +1,35 @@
+[
+  {
+    "id": "piranha_afobada",
+    "nome": "Piranha Afobada",
+    "hp": 14,
+    "velocidade": 68,
+    "dano": 1,
+    "raio": 13,
+    "comportamento": "linha",
+    "capim": 1,
+    "cor": "#e8d44d"
+  },
+  {
+    "id": "marimbondo",
+    "nome": "Marimbondo",
+    "hp": 22,
+    "velocidade": 50,
+    "dano": 1,
+    "raio": 13,
+    "comportamento": "zigzag",
+    "capim": 2,
+    "cor": "#f0913b"
+  },
+  {
+    "id": "celular_surto",
+    "nome": "Celular do Surto",
+    "hp": 70,
+    "velocidade": 26,
+    "dano": 2,
+    "raio": 18,
+    "comportamento": "tanque",
+    "capim": 4,
+    "cor": "#8796a6"
+  }
+]
