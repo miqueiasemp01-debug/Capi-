@@ -1,3 +1,5 @@
+import { relatarErroFatal } from "./erros";
+
 // Resolução lógica fixa (retrato, iPhone-first); o canvas escala pra caber na tela.
 export const LARGURA = 390;
 export const ALTURA = 780;
@@ -6,6 +8,10 @@ export interface Cena {
   atualizar(dt: number): void;
   desenhar(ctx: CanvasRenderingContext2D): void;
   aoTocar(x: number, y: number): void;
+  // opcionais: cenas que rolam (mapa) implementam pra receber o arrasto
+  aoArrastarInicio?(x: number, y: number): void;
+  aoArrastar?(x: number, y: number): void;
+  aoArrastarFim?(): void;
 }
 
 export class Motor {
@@ -29,14 +35,51 @@ export class Motor {
 
     this.ajustarTamanho();
     window.addEventListener("resize", () => this.ajustarTamanho());
+    this.instalarPonteiros();
+  }
+
+  private coord(ev: PointerEvent): { x: number; y: number } {
+    const r = this.canvas.getBoundingClientRect();
+    return {
+      x: ((ev.clientX - r.left) * LARGURA) / r.width,
+      y: ((ev.clientY - r.top) * ALTURA) / r.height,
+    };
+  }
+
+  // Ponteiro unificado: distingue TOQUE (dispara no up, curto) de ARRASTO
+  // (move o suficiente). Assim o mapa desliza sem abrir fase por engano.
+  private instalarPonteiros(): void {
+    let baixo = false;
+    let inicioX = 0;
+    let inicioY = 0;
+    let moveu = false;
+    const LIMIAR = 8;
 
     this.canvas.addEventListener("pointerdown", (ev) => {
       ev.preventDefault();
-      const r = this.canvas.getBoundingClientRect();
-      const x = ((ev.clientX - r.left) * LARGURA) / r.width;
-      const y = ((ev.clientY - r.top) * ALTURA) / r.height;
-      this.cena?.aoTocar(x, y);
+      const { x, y } = this.coord(ev);
+      baixo = true;
+      moveu = false;
+      inicioX = x;
+      inicioY = y;
+      this.canvas.setPointerCapture?.(ev.pointerId);
+      this.cena?.aoArrastarInicio?.(x, y);
     });
+    this.canvas.addEventListener("pointermove", (ev) => {
+      if (!baixo) return;
+      const { x, y } = this.coord(ev);
+      if (Math.hypot(x - inicioX, y - inicioY) > LIMIAR) moveu = true;
+      this.cena?.aoArrastar?.(x, y);
+    });
+    const soltar = (ev: PointerEvent) => {
+      if (!baixo) return;
+      baixo = false;
+      const { x, y } = this.coord(ev);
+      this.cena?.aoArrastarFim?.();
+      if (!moveu) this.cena?.aoTocar(x, y);
+    };
+    this.canvas.addEventListener("pointerup", soltar);
+    this.canvas.addEventListener("pointercancel", soltar);
   }
 
   trocarCena(cena: Cena): void {
@@ -54,12 +97,22 @@ export class Motor {
 
   iniciar(): void {
     let ultimo = performance.now();
+    let errosSeguidos = 0;
     const quadro = (agora: number) => {
+      // reagenda ANTES de qualquer trabalho: mesmo que o corpo lance,
+      // o loop nunca morre em silêncio (a causa do "congela mudo").
+      requestAnimationFrame(quadro);
       const dt = Math.min(0.05, (agora - ultimo) / 1000);
       ultimo = agora;
-      this.cena?.atualizar(dt);
-      if (this.cena) this.cena.desenhar(this.ctx);
-      requestAnimationFrame(quadro);
+      try {
+        this.cena?.atualizar(dt);
+        if (this.cena) this.cena.desenhar(this.ctx);
+        errosSeguidos = 0;
+      } catch (erro) {
+        // um soluço isolado a gente engole; falha persistente vira tela amigável
+        console.error("[Capi] erro no quadro:", erro);
+        if (++errosSeguidos >= 10) relatarErroFatal(erro);
+      }
     };
     requestAnimationFrame(quadro);
   }
