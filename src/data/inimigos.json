@@ -8,28 +8,31 @@
     "raio": 13,
     "comportamento": "linha",
     "capim": 1,
+    "custo": 10,
     "cor": "#e8d44d"
   },
   {
     "id": "marimbondo",
     "nome": "Marimbondo",
-    "hp": 22,
+    "hp": 24,
     "velocidade": 50,
     "dano": 1,
     "raio": 13,
     "comportamento": "zigzag",
     "capim": 2,
+    "custo": 18,
     "cor": "#f0913b"
   },
   {
     "id": "celular_surto",
     "nome": "Celular do Surto",
-    "hp": 70,
+    "hp": 68,
     "velocidade": 26,
     "dano": 2,
     "raio": 18,
     "comportamento": "tanque",
     "capim": 4,
+    "custo": 42,
     "cor": "#8796a6"
   }
 ]

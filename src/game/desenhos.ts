@@ -1,6 +1,9 @@
-import type { GuardiaDef, InimigoDef } from "./tipos";
+import type { GuardiaDef, InimigoInstancia } from "./tipos";
 import { LARGURA, ALTURA } from "./motor";
 import { imagem } from "./imagens";
+
+// O desenho só precisa deste subconjunto — serve tanto pra def quanto instância.
+type InimigoDesenhavel = Pick<InimigoInstancia, "id" | "raio" | "comportamento" | "cor">;
 
 // Desenha uma imagem cobrindo a tela inteira (tipo background-size: cover),
 // com zoom e deslocamento opcionais pra parallax.
@@ -222,7 +225,7 @@ export function desenharGuardia(
 // movimento; sem sprite, cai no desenho procedural da Sessão 1.
 export function desenharInimigo(
   ctx: CanvasRenderingContext2D,
-  def: InimigoDef,
+  def: InimigoDesenhavel,
   x: number,
   y: number,
   tempo: number,
@@ -318,6 +321,114 @@ export function desenharInimigo(
     ctx.arc(dx + 4, dy - 2, 1.8, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  ctx.restore();
+}
+
+// Chefão: bolha grande com coroa, olhos bravos e "respiração" pesada.
+// Quando submerso, vira só uma sombra/vórtice na água (telegraph de onde emerge).
+export function desenharChefe(
+  ctx: CanvasRenderingContext2D,
+  def: InimigoDesenhavel & { chefe?: { nome: string } },
+  x: number,
+  y: number,
+  tempo: number,
+  submerso: boolean,
+  dormindo: boolean,
+): void {
+  ctx.save();
+
+  if (submerso) {
+    // vórtice/sombra girando: avisa que algo grande vem aí
+    ctx.globalAlpha = 0.5 + 0.2 * Math.sin(tempo * 4);
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      const r = 10 + i * 9 + Math.sin(tempo * 3 + i) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r, tempo * 2 + i, tempo * 2 + i + Math.PI * 1.4);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+
+  if (dormindo) ctx.globalAlpha = 0.55;
+  const pulso = 1 + 0.05 * Math.sin(tempo * 6);
+  const r = def.raio * pulso;
+
+  // sombra na água
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.9, r * 1.1, r * 0.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(6, 30, 24, 0.35)";
+  ctx.fill();
+
+  // corpo
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = def.cor;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.stroke();
+
+  // barriga clara
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.35, r * 0.55, r * 0.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.fill();
+
+  // olhos
+  if (dormindo) {
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    for (const lado of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + lado * r * 0.3 - 6, y - r * 0.1);
+      ctx.lineTo(x + lado * r * 0.3 + 6, y - r * 0.1);
+      ctx.stroke();
+    }
+  } else {
+    for (const lado of [-1, 1]) {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(x + lado * r * 0.32, y - r * 0.1, r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#222";
+      ctx.beginPath();
+      ctx.arc(x + lado * r * 0.32 + lado * 2, y - r * 0.08, r * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // sobrancelhas bravas
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.5, y - r * 0.42);
+    ctx.lineTo(x - r * 0.16, y - r * 0.28);
+    ctx.moveTo(x + r * 0.5, y - r * 0.42);
+    ctx.lineTo(x + r * 0.16, y - r * 0.28);
+    ctx.stroke();
+  }
+
+  // coroa dourada de chefe
+  ctx.fillStyle = "#ffd24a";
+  ctx.strokeStyle = "#b8860b";
+  ctx.lineWidth = 1.5;
+  const cy = y - r - 4;
+  const cw = r * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(x - cw / 2, cy + 10);
+  ctx.lineTo(x - cw / 2, cy + 2);
+  ctx.lineTo(x - cw / 4, cy + 8);
+  ctx.lineTo(x, cy - 4);
+  ctx.lineTo(x + cw / 4, cy + 8);
+  ctx.lineTo(x + cw / 2, cy + 2);
+  ctx.lineTo(x + cw / 2, cy + 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 
   ctx.restore();
 }

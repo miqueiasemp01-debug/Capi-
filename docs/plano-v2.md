@@ -142,6 +142,51 @@ Temporadas de 30 dias (capítulo novo + 3–4 guardiãs + passe), ranking semana
 - **Simulador de balanceamento:** script Node que roda milhares de batalhas automáticas por fase e imprime taxa de vitória por nível de poder — calibramos o power gate com dados, não no olho. (Claude escreve e roda; decisão é sua.)
 - **Telemetria:** eventos (tutorial_completo, fase_x_vitoria, primeira_compra, d1_retorno) — local no soft launch, postback pro Growth Max na escala.
 
+## 9-A. Geração procedural de fases (v2.1)
+
+As fases **deixaram de ser JSON fixo** e passaram a ser **geradas por fórmula**, com
+`seed = número da fase` — a fase 7 é sempre idêntica, sem guardar dado. Config em
+`/src/data/curva.json` (curva mestre), `inimigos.json` (stats-base + custo) e
+`chefes.json` (arquétipos). Motor em `/src/game/procedural.ts`.
+
+- **poderRecomendado(n)** = `poderBase · crescimento^(n-1)` (crescimento suave, pensado p/ 100+ fases). HP dos inimigos escala igual (`escala = crescimento^(n-1)`), então o tempo-pra-derrubar cada afobado fica ~constante quando o jogador está no nível.
+- **Orçamento de spawn** por minuto derivado da escala: cada inimigo tem um **custo**; o motor gasta o orçamento com um **dispensador proporcional** (não sorteio puro) da tabela de **mix do trecho** — os pesos piranha/marimbondo/celular **mudam a cada 20 fases**. Contagem de inimigos fica ~constante; o que cresce é o quão tankudos são.
+- **Chefão a cada 10 fases**, 3 arquétipos reutilizáveis com modificadores: **Boto Apressado** (mergulha e reaparece perto da Capi), **Celularzão** (invoca notificações afobadas), **A Apressada** (para, telegrafa e investe). Recompensa gorda: **caixa + gemas**.
+- **Dificuldade é corrida de DPS**: dano de contato baixo e fixo; a evolução da Calma da Capi é folga extra. Jitter de HP por inimigo quebra a ressonância de "golpes p/ matar".
+- **Calibração no simulador** (`npm run simular [até]`): imprime taxa de vitória por fase no poder recomendado e um nível acima. Alvo — comum 65–75%, chefão 45–55% e ≥90% um nível acima. Os **3 chefes ficam ~50%** no recomendado e ≥87% acima; as comuns ficam numa faixa desafiadora e vencível (respiros no onboarding). A calibragem fina é LiveOps.
+
+## 9-B. Capi combatente (v2.1)
+
+A Capi deixou de ser só alvo: agora dispara uma **onda dourada radial automática**
+(dano em área a cada ~3,4 s). No cartão dela, na Equipe, há **duas evoluções separadas
+com capim**: **Ataque** (Onda Dourada, ×1,4 de dano/nível) e **Calma Máxima** (+2/nível).
+Ambas entram no cálculo de **Poder da equipe**.
+
+## 9-C. Identidade de ataque e som (v2.1)
+
+O "laser genérico" morreu — cada unidade tem projétil/efeito e **som sintetizado**
+(WebAudio, zero arquivos; `sfx.ts` com limite de vozes e mute):
+
+| Unidade | Ataque (visual) | Som |
+|---|---|---|
+| Capi | Onda dourada expansiva em área | Gongo suave |
+| Boiadeira | Chicotada: linha que estala no alvo | Estalo seco |
+| Sonequinha | Onda branca lenta que **paralisa 1,5 s** ao tocar | Sino etéreo |
+| Estagiário | Cafezinho em arco com respingo | Splash |
+| Piranha (nasce) | — | Blub raivoso |
+| Marimbondo | — | Zumbido |
+| Celular do Surto | — | Vibração + ding |
+| Dormir 💤 | — | Sininho + ronquinho |
+| Chefão (entra) | — | Acorde grave |
+| UI | — | Cliques suaves |
+
+## 9-D. Robustez (v2.1)
+
+O loop de render **nunca mais congela mudo**: reagenda o quadro antes de qualquer
+trabalho e engole exceções isoladas; falha persistente vira tela amigável
+**"Ops! Recarregar"** (`erros.ts` + `window.onerror`/`unhandledrejection`). O save
+antigo **migra sem quebrar** (campos novos ganham default; o progresso vira posição no mapa).
+
 ## 10. Conformidade TikTok (mantida e válida na v2)
 F2P ✔ · compras sem saque/valor externo ✔ · caixas = "produto surpresa" com recompensa garantida + odds públicas + pity ✔ · rewarded obrigatório ✔ · sem aposta/prêmio em dinheiro ✔ · conteúdo leve sem violência (inimigos dormem) ✔ · pacote <50 MB ✔.
 
@@ -216,6 +261,22 @@ Protótipo de referência: referencia/prototipo-v02.html
 ## Anexo B — Cole isto na sua PRIMEIRA sessão do Claude Code
 
 > Leia o CLAUDE.md e o docs/plano-v2.md. Sessão 1: crie o projeto base com Vite + TypeScript conforme a stack definida; estruture /src (game, scenes, data, i18n), /scripts e /docs; migre o gameplay do referencia/prototipo-v02.html para a cena de jogo com os dados de fase vindos de JSON; crie as telas de título e de equipe (ainda simples); configure o deploy automático no GitHub Pages (Action que builda com Vite e publica a cada push). Trabalho 100% pelo iPhone: no final, me entregue o LINK do jogo publicado pra eu abrir no Safari e o resumo do que testar.
+
+---
+
+## Changelog
+
+### v2.1 — Mapa, fases infinitas e identidade de combate
+- **Fases procedurais** (seed = número da fase) substituem o `fases.json` fixo — suporta 100+ fases sem editar dados. Curva/mix/chefes em `curva.json` + `inimigos.json` + `chefes.json`.
+- **Chefões a cada 10 fases** (3 arquétipos: Boto mergulhador, Celularzão invocador, Apressada investida) com recompensa de caixa + gemas.
+- **Mapa deslizável** virou a tela inicial (trilha horizontal, nós, coroa nos chefões, estrelas, bioma por capítulo, nó atual pulsando, botão flutuante da Equipe, banner de evento reservado).
+- **Capi combatente**: onda dourada radial + duas evoluções (Ataque e Calma Máx.) no cálculo de Poder.
+- **Identidade de ataque**: onda dourada (Capi), chicote (Boiadeira), onda paralisante (Sonequinha), café em arco (Estagiário).
+- **Som pra tudo** via WebAudio sintetizado (`sfx.ts`, limite de vozes + mute).
+- **Robustez**: coletor global de erros + loop à prova de falhas ("Ops! Recarregar") — fim do "congela mudo". Save antigo migra sem quebrar.
+
+### v2.0 — Defesa Zen (base)
+- Gameplay Defesa Zen, guardiãs de combate, economia multiplicativa, evolução com celebração, reforma visual com sprites e UI mobile, deploy automático no GitHub Pages.
 
 ---
 *Documento vivo. Atualizar: após o teste do muro da fase 8–10, após a conversa de repasse com o TikTok, e após os dados do soft launch.*

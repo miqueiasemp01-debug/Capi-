@@ -1,0 +1,38 @@
+[
+  {
+    "id": "boto",
+    "nome": "Boto Apressado",
+    "arquetipo": "mergulhador",
+    "descricao": "Mergulha e reaparece perto da Capi — mire quando emergir",
+    "hpMultiplicador": 7,
+    "danoContato": 2,
+    "raio": 34,
+    "velocidade": 46,
+    "cor": "#e88fb0",
+    "cicloS": 3.2
+  },
+  {
+    "id": "celularzao",
+    "nome": "Celularzão",
+    "arquetipo": "invocador",
+    "descricao": "Tanque lento que invoca notificações afobadas",
+    "hpMultiplicador": 19,
+    "danoContato": 2,
+    "raio": 40,
+    "velocidade": 20,
+    "cor": "#6a7fa6",
+    "cicloS": 4.5
+  },
+  {
+    "id": "apressada",
+    "nome": "A Apressada",
+    "arquetipo": "investida",
+    "descricao": "Para, mira e investe atravessando o lago",
+    "hpMultiplicador": 14,
+    "danoContato": 1,
+    "raio": 32,
+    "velocidade": 40,
+    "cor": "#d98a3c",
+    "cicloS": 3.6
+  }
+]

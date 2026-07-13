@@ -1,0 +1,225 @@
+// Áudio 100% sintetizado (WebAudio) — zero arquivos, zero peso no build.
+// Contexto central único, limite de vozes (protege o desempenho e o ouvido)
+// e mute persistente. Nasce no 1º gesto do usuário (regra do iOS) e falha
+// sempre em silêncio: som nunca pode derrubar o jogo.
+
+let ctx: AudioContext | null = null;
+let masterGain: GainNode | null = null;
+let ruidoBuffer: AudioBuffer | null = null;
+let mutado = false;
+let vozesAtivas = 0;
+const LIMITE_VOZES = 14;
+
+function garantirContexto(): AudioContext | null {
+  try {
+    if (!ctx) {
+      const Construtor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Construtor) return null;
+      ctx = new Construtor();
+      masterGain = ctx.createGain();
+      masterGain.gain.value = mutado ? 0 : 0.9;
+      masterGain.connect(ctx.destination);
+
+      // buffer de ruído reutilizável (chicote, splash, zumbido)
+      const tamanho = Math.floor(ctx.sampleRate * 0.4);
+      ruidoBuffer = ctx.createBuffer(1, tamanho, ctx.sampleRate);
+      const dados = ruidoBuffer.getChannelData(0);
+      for (let i = 0; i < tamanho; i++) dados[i] = Math.random() * 2 - 1;
+    }
+    if (ctx.state === "suspended") void ctx.resume();
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
+export function definirMute(valor: boolean): void {
+  mutado = valor;
+  if (masterGain && ctx) masterGain.gain.setTargetAtTime(valor ? 0 : 0.9, ctx.currentTime, 0.01);
+}
+
+export function estaMutado(): boolean {
+  return mutado;
+}
+
+// Toca uma voz respeitando o limite; devolve destino pra conectar ou null.
+function abrirVoz(): { ctx: AudioContext; destino: GainNode } | null {
+  const c = garantirContexto();
+  if (!c || !masterGain || mutado) return null;
+  if (vozesAtivas >= LIMITE_VOZES) return null;
+  vozesAtivas++;
+  return { ctx: c, destino: masterGain };
+}
+
+function fecharVozEm(c: AudioContext, quando: number): void {
+  const restante = Math.max(0, quando - c.currentTime);
+  window.setTimeout(() => {
+    vozesAtivas = Math.max(0, vozesAtivas - 1);
+  }, restante * 1000 + 60);
+}
+
+interface OpcoesTom {
+  freq: number;
+  fim?: number;
+  dur: number;
+  vol: number;
+  tipo?: OscillatorType;
+  inicioAtraso?: number;
+  glideFreq?: number;
+}
+
+function tom(destino: AudioNode, c: AudioContext, o: OpcoesTom): void {
+  const inicio = c.currentTime + (o.inicioAtraso ?? 0);
+  const fim = inicio + o.dur;
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = o.tipo ?? "sine";
+  osc.frequency.setValueAtTime(o.freq, inicio);
+  if (o.glideFreq) osc.frequency.exponentialRampToValueAtTime(o.glideFreq, fim);
+  g.gain.setValueAtTime(0.0001, inicio);
+  g.gain.exponentialRampToValueAtTime(o.vol, inicio + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, fim);
+  osc.connect(g);
+  g.connect(destino);
+  osc.start(inicio);
+  osc.stop(fim + 0.03);
+}
+
+function ruido(destino: AudioNode, c: AudioContext, dur: number, vol: number, corte: number, tipo: BiquadFilterType = "bandpass"): void {
+  if (!ruidoBuffer) return;
+  const inicio = c.currentTime;
+  const fonte = c.createBufferSource();
+  fonte.buffer = ruidoBuffer;
+  const filtro = c.createBiquadFilter();
+  filtro.type = tipo;
+  filtro.frequency.value = corte;
+  filtro.Q.value = 0.9;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vol, inicio);
+  g.gain.exponentialRampToValueAtTime(0.0001, inicio + dur);
+  fonte.connect(filtro);
+  filtro.connect(g);
+  g.connect(destino);
+  fonte.start(inicio);
+  fonte.stop(inicio + dur + 0.02);
+}
+
+// ---------------------------------------------------------------- ataques
+
+// Capi: gongo suave dourado (fundamental grave + harmônico, decaimento longo).
+export function somOndaCapi(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 174, dur: 0.9, vol: 0.16, tipo: "sine", glideFreq: 130 });
+  tom(v.destino, v.ctx, { freq: 349, dur: 0.7, vol: 0.07, tipo: "sine" });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.9);
+}
+
+// Boiadeira: estalo seco do chicote (ruído curtíssimo + tom que sobe).
+export function somChicote(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  ruido(v.destino, v.ctx, 0.09, 0.5, 2600, "highpass");
+  tom(v.destino, v.ctx, { freq: 320, dur: 0.08, vol: 0.12, tipo: "square", glideFreq: 900 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.12);
+}
+
+// Sonequinha: sino etéreo da paralisia (dó agudo com brilho e shimmer).
+export function somParalisia(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 1046, dur: 0.5, vol: 0.1, tipo: "sine" });
+  tom(v.destino, v.ctx, { freq: 1568, dur: 0.4, vol: 0.05, tipo: "sine", inicioAtraso: 0.04 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.55);
+}
+
+// Estagiário: splash do café (ruído médio filtrado + "plop").
+export function somCafe(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  ruido(v.destino, v.ctx, 0.16, 0.28, 900, "bandpass");
+  tom(v.destino, v.ctx, { freq: 420, dur: 0.12, vol: 0.08, tipo: "triangle", glideFreq: 240 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.2);
+}
+
+// Toque de Calma: toque cristalino curtinho.
+export function somToque(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 660, dur: 0.14, vol: 0.09, tipo: "triangle", glideFreq: 880 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.16);
+}
+
+// ---------------------------------------------------------------- inimigos
+
+export function somPiranhaNasce(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 240, dur: 0.14, vol: 0.09, tipo: "square", glideFreq: 120 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.16);
+}
+
+export function somMarimbondo(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 190, dur: 0.22, vol: 0.06, tipo: "sawtooth", glideFreq: 210 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.24);
+}
+
+export function somCelular(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 90, dur: 0.18, vol: 0.1, tipo: "square" });
+  tom(v.destino, v.ctx, { freq: 1320, dur: 0.1, vol: 0.06, tipo: "sine", inicioAtraso: 0.16 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.3);
+}
+
+// Dormir: sininho + ronquinho fofo.
+export function somDormir(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 880, dur: 0.18, vol: 0.08, tipo: "sine", glideFreq: 1100 });
+  tom(v.destino, v.ctx, { freq: 150, dur: 0.28, vol: 0.05, tipo: "triangle", glideFreq: 110, inicioAtraso: 0.1 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.4);
+}
+
+// ---------------------------------------------------------------- eventos
+
+// Chefão entra: acorde grave e ameaçador.
+export function somChefao(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 65, dur: 1.1, vol: 0.16, tipo: "sawtooth" });
+  tom(v.destino, v.ctx, { freq: 98, dur: 1.0, vol: 0.1, tipo: "sine" });
+  tom(v.destino, v.ctx, { freq: 130, dur: 0.9, vol: 0.07, tipo: "sine", inicioAtraso: 0.08 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 1.1);
+}
+
+// Vitória / conquista: arpejo maior subindo (dó-mi-sol-dó).
+export function somConquista(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+    tom(v.destino, v.ctx, { freq: f, dur: 0.5, vol: 0.16, tipo: "triangle", inicioAtraso: i * 0.09 });
+  });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.9);
+}
+
+export function somDerrota(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  [392, 330, 262].forEach((f, i) => {
+    tom(v.destino, v.ctx, { freq: f, dur: 0.4, vol: 0.12, tipo: "sine", inicioAtraso: i * 0.12 });
+  });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.7);
+}
+
+// UI: clique suave.
+export function somClique(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 520, dur: 0.05, vol: 0.06, tipo: "sine", glideFreq: 640 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.07);
+}
