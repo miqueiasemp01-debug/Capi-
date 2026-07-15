@@ -10,6 +10,8 @@ import { CenaMapa } from "./scenes/mapa";
 import { CenaFase } from "./scenes/fase";
 import { CenaCutscene } from "./scenes/cutscene";
 import { CenaCaixa } from "./scenes/caixa";
+import { CenaPreFase } from "./scenes/pre-fase";
+import { prepararFundacaoJornada, verificarNavegacao } from "./game/jornada";
 
 instalarColetorDeErros();
 
@@ -17,19 +19,33 @@ const container = document.getElementById("app");
 if (!container) throw new Error("#app não encontrado");
 
 const motor = new Motor(container);
+const dadosCarregados = save.carregar();
+if (prepararFundacaoJornada(dadosCarregados)) save.salvar(dadosCarregados);
 
 const jogo: Jogo = {
-  dados: save.carregar(),
+  dados: dadosCarregados,
   salvar() {
     save.salvar(jogo.dados);
   },
   irPara(destino: Destino) {
+    const verificacao = verificarNavegacao(jogo.dados);
+    if (verificacao.mudou) jogo.salvar();
+
+    if (destino.tela !== "cutscene" && verificacao.cutscene) {
+      motor.trocarCena(new CenaCutscene(jogo, verificacao.cutscene));
+      return;
+    }
+
     if (destino.tela === "titulo") motor.trocarCena(new CenaTitulo(jogo));
     else if (destino.tela === "mapa") motor.trocarCena(new CenaMapa(jogo));
     else if (destino.tela === "equipe") motor.trocarCena(new CenaEquipe(jogo));
     else if (destino.tela === "caixa") motor.trocarCena(new CenaCaixa(jogo));
     else if (destino.tela === "cutscene") motor.trocarCena(new CenaCutscene(jogo, destino.tipo));
-    else motor.trocarCena(new CenaFase(jogo, destino.numero));
+    else {
+      const numero = Math.max(1, Math.min(Math.floor(destino.numero), jogo.dados.faseMaxima + 1));
+      if (destino.tela === "pre_fase") motor.trocarCena(new CenaPreFase(jogo, numero));
+      else motor.trocarCena(new CenaFase(jogo, numero));
+    }
   },
 };
 

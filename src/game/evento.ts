@@ -10,24 +10,25 @@ export const FASE_RESGATE = 10; // vencer o chefão da 10 cura
 
 // Aplica as transições que dependem do tempo. Idempotente — chame à vontade
 // (todo quadro do mapa/fase). Retorna true se algo mudou (pra salvar).
-export function sincronizarEvento(dados: SaveData): boolean {
+export function sincronizarEvento(dados: SaveData, instante = agora()): boolean {
   const e = dados.evento;
-  const t = agora();
   let mudou = false;
 
-  if (e.sonequinha === "surtada" && t >= e.resgateAte) {
+  if (e.sonequinha === "surtada" && instante >= e.resgateAte) {
     // expirou a janela de 6h: sem perda permanente, reabre em 24h
+    const fimDaJanela = e.resgateAte > 0 ? e.resgateAte : instante;
     e.sonequinha = "perdida";
-    e.reabreEm = t + REABERTURA_MS;
+    e.reabreEm = fimDaJanela + REABERTURA_MS;
     mudou = true;
   }
-  if (e.sonequinha === "perdida" && t >= e.reabreEm) {
+  if (e.sonequinha === "perdida" && instante >= e.reabreEm) {
     // nova chance: missão reabre com janela fresca de 6h
     e.sonequinha = "surtada";
-    e.resgateAte = t + JANELA_RESGATE_MS;
+    e.resgateAte = instante + JANELA_RESGATE_MS;
+    e.reabreEm = 0;
     mudou = true;
   }
-  if (e.serena === "ativa" && t >= e.serenaAte) {
+  if (e.serena === "ativa" && instante >= e.serenaAte) {
     e.serena = "expirada";
     mudou = true;
   }
@@ -43,10 +44,13 @@ export function deveSurtar(dados: SaveData): boolean {
   );
 }
 
-export function iniciarSurto(dados: SaveData): void {
+export function iniciarSurto(dados: SaveData, instante = agora()): boolean {
+  if (!deveSurtar(dados)) return false;
   dados.evento.sonequinha = "surtada";
-  dados.evento.resgateAte = agora() + JANELA_RESGATE_MS;
-  dados.evento.cutsceneVista = true;
+  dados.evento.resgateAte = instante + JANELA_RESGATE_MS;
+  dados.evento.reabreEm = 0;
+  dados.evento.cutsceneSurtoVista = false;
+  return true;
 }
 
 export function sonequinhaBloqueada(dados: SaveData): boolean {
@@ -54,32 +58,71 @@ export function sonequinhaBloqueada(dados: SaveData): boolean {
 }
 
 // Missão de resgate ativa (janela de 6h correndo)?
-export function missaoResgateAtiva(dados: SaveData): boolean {
-  return dados.evento.sonequinha === "surtada";
+export function missaoResgateAtiva(dados: SaveData, instante = agora()): boolean {
+  return dados.evento.sonequinha === "surtada" && instante < dados.evento.resgateAte;
 }
 
-// Curar a Sonequinha (venceu o chefão da 10 na janela). Dispara oferta 48h.
-export function curarSonequinha(dados: SaveData): void {
+// Cura atômica: a fase só vale para a mesma janela em que foi iniciada.
+export function tentarCurarSonequinha(
+  dados: SaveData,
+  janelaAoEntrar: number,
+  instante = agora(),
+): boolean {
+  sincronizarEvento(dados, instante);
+  if (
+    janelaAoEntrar <= 0 ||
+    dados.evento.resgateAte !== janelaAoEntrar ||
+    !missaoResgateAtiva(dados, instante)
+  ) {
+    return false;
+  }
+
   dados.evento.sonequinha = "curada";
+  dados.evento.resgateAte = 0;
+  dados.evento.reabreEm = 0;
+  dados.evento.cutsceneCuraVista = false;
   dados.evento.caixaLiberada = true;
   if (dados.evento.serena === "nenhuma") {
     dados.evento.serena = "ativa";
-    dados.evento.serenaAte = agora() + OFERTA_SERENA_MS;
+    dados.evento.serenaAte = instante + OFERTA_SERENA_MS;
+    dados.evento.ofertaSerenaVista = false;
   }
+  return true;
 }
 
-export function ofertaSerenaAtiva(dados: SaveData): boolean {
-  return dados.evento.serena === "ativa" && !dados.guardiasPossuidas.includes("grande_serena");
+export function cutsceneSurtoPendente(dados: SaveData): boolean {
+  return dados.evento.sonequinha !== "normal" && !dados.evento.cutsceneSurtoVista;
 }
 
-export function msRestantesResgate(dados: SaveData): number {
-  return dados.evento.resgateAte - agora();
+export function cutsceneCuraPendente(dados: SaveData): boolean {
+  return dados.evento.sonequinha === "curada" && !dados.evento.cutsceneCuraVista;
 }
-export function msRestantesReabertura(dados: SaveData): number {
-  return dados.evento.reabreEm - agora();
+
+export function marcarCutsceneVista(dados: SaveData, tipo: "surto" | "cura"): void {
+  if (tipo === "surto") dados.evento.cutsceneSurtoVista = true;
+  else dados.evento.cutsceneCuraVista = true;
 }
-export function msRestantesOferta(dados: SaveData): number {
-  return dados.evento.serenaAte - agora();
+
+export function marcarOfertaSerenaVista(dados: SaveData): void {
+  dados.evento.ofertaSerenaVista = true;
+}
+
+export function ofertaSerenaAtiva(dados: SaveData, instante = agora()): boolean {
+  return (
+    dados.evento.serena === "ativa" &&
+    instante < dados.evento.serenaAte &&
+    !dados.guardiasPossuidas.includes("grande_serena")
+  );
+}
+
+export function msRestantesResgate(dados: SaveData, instante = agora()): number {
+  return dados.evento.resgateAte - instante;
+}
+export function msRestantesReabertura(dados: SaveData, instante = agora()): number {
+  return dados.evento.reabreEm - instante;
+}
+export function msRestantesOferta(dados: SaveData, instante = agora()): number {
+  return dados.evento.serenaAte - instante;
 }
 
 // Guardiãs que entram em campo / contam no Poder: possuídas e não bloqueadas.

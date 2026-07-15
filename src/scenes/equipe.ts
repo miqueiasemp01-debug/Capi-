@@ -42,7 +42,7 @@ const NOME_ESTAGIO: Record<string, ChaveTexto> = {
 const Y_CAPI = 74;
 const Y_TOQUE = 200;
 const Y_GUARDIA_BASE = 294;
-const PASSO_GUARDIA = 84;
+const PASSO_GUARDIA = 68;
 
 function formatarDano(valor: number): string {
   const arredondado = Math.round(valor * 10) / 10;
@@ -324,33 +324,33 @@ export class CenaEquipe implements Cena {
     const nivel = nivelDaGuardia(dados, guardia.id);
     const custo = custoEvoluirGuardia(nivel);
     const podeEvoluir = dados.capim >= custo && !bloqueada;
-    this.cartaoBase(ctx, x, y, 78);
+    this.cartaoBase(ctx, x, y, 64);
 
     ctx.save();
     if (bloqueada) ctx.globalAlpha = 0.5;
     desenharRetrato(
       ctx, bloqueada ? null : imagem(`retrato-${guardia.id}`),
       bloqueada ? "#5a5560" : CORES_RARIDADE[guardia.raridade],
-      guardia.cor, guardia.nome[0], x + 12, y + 12, 54,
+      guardia.cor, guardia.nome[0], x + 10, y + 10, 44,
     );
     ctx.restore();
     if (bloqueada) {
       // marca de "surtada"
       ctx.font = "700 22px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("😵‍💫", x + 39, y + 39);
+      ctx.fillText("😵‍💫", x + 32, y + 32);
     }
-    if (podeEvoluir) desenharBadge(ctx, x + 66, y + 14, this.tempo);
+    if (podeEvoluir) desenharBadge(ctx, x + 54, y + 12, this.tempo);
 
     ctx.textAlign = "left";
     ctx.fillStyle = bloqueada ? "rgba(255,255,255,0.6)" : "#ffffff";
-    ctx.font = "700 17px system-ui, sans-serif";
-    ctx.fillText(guardia.nome, x + 78, y + 24);
+    ctx.font = "700 15px system-ui, sans-serif";
+    ctx.fillText(guardia.nome, x + 64, y + 19);
 
     if (bloqueada) {
       ctx.fillStyle = "#e0888f";
       ctx.font = "600 13px system-ui, sans-serif";
-      ctx.fillText("😵‍💫 Sequestrada pelo Surto!", x + 78, y + 48, 200);
+      ctx.fillText("😵‍💫 Sequestrada pelo Surto!", x + 64, y + 43, 190);
       return;
     }
 
@@ -360,8 +360,8 @@ export class CenaEquipe implements Cena {
     ctx.font = "500 13px system-ui, sans-serif";
     ctx.fillText(
       `${eLendaria ? "★ Lendária" : t(NOME_ESTAGIO[estagio])} · ${t("equipe_nivel")} ${nivel}`,
-      x + 78,
-      y + 44,
+      x + 64,
+      y + 38,
       140,
     );
 
@@ -369,11 +369,11 @@ export class CenaEquipe implements Cena {
     ctx.fillStyle = "#9fdf8f";
     ctx.fillText(
       `${t("equipe_dano")} ${formatarDano(danoDaGuardia(guardia, nivel))} → ${formatarDano(danoDaGuardia(guardia, nivel + 1))}`,
-      x + 78,
-      y + 64,
+      x + 64,
+      y + 55,
       140,
     );
 
-    this.botaoEvoluir(ctx, LARGURA - 140, y + 20, 112, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
+    this.botaoEvoluir(ctx, LARGURA - 140, y + 12, 112, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
   }
 }

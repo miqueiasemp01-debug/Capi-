@@ -1,6 +1,6 @@
 import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
-import { iniciarSurto } from "../game/evento";
+import { marcarCutsceneVista } from "../game/evento";
 import { desenharGuardia } from "../game/desenhos";
 import { guardiaPorId } from "../game/conteudo";
 import { desenharBotao, tracarRetanguloArredondado, type Botao } from "../game/ui";
@@ -51,10 +51,8 @@ export class CenaCutscene implements Cena {
       return;
     }
     // fim da cutscene
-    if (this.tipo === "surto") {
-      iniciarSurto(this.jogo.dados);
-      this.jogo.salvar();
-    }
+    marcarCutsceneVista(this.jogo.dados, this.tipo);
+    this.jogo.salvar();
     this.jogo.irPara({ tela: "mapa" });
   }
 

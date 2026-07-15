@@ -13,7 +13,8 @@ import {
   estagioDaGuardia,
   nivelDaGuardia,
 } from "../game/economia";
-import { curarSonequinha, guardiasAtivas, missaoResgateAtiva } from "../game/evento";
+import { guardiasAtivas, missaoResgateAtiva, sincronizarEvento } from "../game/evento";
+import { concederRecompensasDaVitoria } from "../game/recompensas";
 import { desenharCapi, desenharChefe, desenharGuardia, desenharImagemCobrindo, desenharInimigo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharIconeCapim, desenharPilulaRecurso } from "../game/icones";
@@ -124,6 +125,9 @@ export class CenaFase implements Cena {
   private totalInimigos: number;
   private curou = false; // curou a Sonequinha nesta vitória (chefão da 10)
   private gemasBonus3 = 0; // +gemas de 3★ pela 1ª vez
+  private gemasChefeGanhas = 0;
+  private reforcoInicialConcedido = false;
+  private readonly janelaResgateAoEntrar: number;
 
   private proximoEvento = 0;
   private inimigos: Inimigo[] = [];
@@ -144,7 +148,12 @@ export class CenaFase implements Cena {
     private readonly jogo: Jogo,
     numero: number,
   ) {
+    if (sincronizarEvento(jogo.dados)) jogo.salvar();
     this.fase = gerarFase(numero);
+    this.janelaResgateAoEntrar =
+      this.fase.numero === 10 && missaoResgateAtiva(jogo.dados)
+        ? jogo.dados.evento.resgateAte
+        : 0;
     this.calmaMax = this.fase.calmaMax + calmaMaximaBonus(jogo.dados.capiCalmaNivel);
     this.calma = this.calmaMax;
     this.totalInimigos = this.fase.eventos.length;
@@ -183,6 +192,7 @@ export class CenaFase implements Cena {
 
   atualizar(dt: number): void {
     this.tempo += dt;
+    if (this.fase.numero === 10 && sincronizarEvento(this.jogo.dados)) this.jogo.salvar();
     if (this.estado !== "jogando") return;
 
     while (
@@ -545,25 +555,17 @@ export class CenaFase implements Cena {
     this.estrelas = proporcao >= 0.8 ? 3 : proporcao >= 0.5 ? 2 : 1;
     sfx.somConquista();
 
-    const dados = this.jogo.dados;
-    dados.capim += this.fase.capimVitoria + this.capimColetado;
-    dados.gemas += this.fase.gemasVitoria;
-    dados.faseMaxima = Math.max(dados.faseMaxima, this.fase.numero);
-    const chave = String(this.fase.numero);
-
-    // fonte de gemas: primeira 3★ numa fase → +2 gemas
-    if (this.estrelas === 3 && !dados.bonusEstrela3[chave]) {
-      dados.bonusEstrela3[chave] = true;
-      dados.gemas += 2;
-      this.gemasBonus3 = 2;
-    }
-    dados.estrelas[chave] = Math.max(dados.estrelas[chave] ?? 0, this.estrelas);
-
-    // cura da Sonequinha: venceu o Chefão da fase 10 na janela de resgate
-    if (this.fase.ehChefe && this.fase.numero === 10 && missaoResgateAtiva(dados)) {
-      curarSonequinha(dados);
-      this.curou = true;
-    }
+    const recompensa = concederRecompensasDaVitoria(
+      this.jogo.dados,
+      this.fase,
+      this.estrelas,
+      this.capimColetado,
+      this.janelaResgateAoEntrar,
+    );
+    this.gemasChefeGanhas = recompensa.gemasChefeGanhas;
+    this.gemasBonus3 = recompensa.gemasBonus3;
+    this.reforcoInicialConcedido = recompensa.reforcoInicialConcedido;
+    this.curou = recompensa.curouSonequinha;
 
     this.jogo.salvar();
   }
@@ -591,7 +593,7 @@ export class CenaFase implements Cena {
         }
         if (botao.acao === "mapa") this.jogo.irPara({ tela: "mapa" });
         if (botao.acao === "equipe") this.jogo.irPara({ tela: "equipe" });
-        if (botao.acao === "proxima") this.jogo.irPara({ tela: "fase", numero: this.fase.numero + 1 });
+        if (botao.acao === "proxima") this.jogo.irPara({ tela: "pre_fase", numero: this.fase.numero + 1 });
         if (botao.acao === "repetir") this.jogo.irPara({ tela: "fase", numero: this.fase.numero });
       }
       return;
@@ -653,6 +655,36 @@ export class CenaFase implements Cena {
       this.ondas.push({ x: alvo.x, y: alvo.y, nasceu: this.tempo, cor: guardia.def.cor });
       this.flutuantes.push({ texto: "🪢", x: alvo.x, y: alvo.y - 18, nasceu: this.tempo, cor: "#fff" });
       sfx.somChicote();
+    } else if (hab.tipo === "rajada_cafes") {
+      let disparos = 0;
+      const danoPorCafe = danoDaGuardia(guardia.def, guardia.nivel) * this.auraMult * 0.7;
+      for (let i = 0; i < 5; i++) {
+        let alvo: Inimigo | null = null;
+        let menorDist = Infinity;
+        for (const inimigo of this.inimigos) {
+          if (inimigo.estado !== "nadando" || inimigo.submerso) continue;
+          const dist = Math.hypot(inimigo.x - guardia.x, inimigo.y - guardia.y);
+          if (dist < menorDist) {
+            menorDist = dist;
+            alvo = inimigo;
+          }
+        }
+        if (!alvo) break;
+        this.efeitos.push({
+          tipo: "cafe",
+          x0: guardia.x,
+          y0: guardia.y - 14,
+          x1: alvo.x + (i - 2) * 4,
+          y1: alvo.y,
+          cor: guardia.def.cor,
+          nasceu: this.tempo + i * 0.06,
+          duracao: 0.3,
+        });
+        this.causarDano(alvo, danoPorCafe, "guardia");
+        disparos++;
+      }
+      if (disparos === 0) return;
+      sfx.somCafe();
     } else {
       let pegouAlguem = false;
       for (const inimigo of this.inimigos) {
@@ -1020,16 +1052,22 @@ export class CenaFase implements Cena {
       ctx.fillText(textoCapim, CENTRO_X - 30, painel.y + 140);
       desenharIconeCapim(ctx, CENTRO_X - 30 + ctx.measureText(textoCapim).width / 2 + 12, painel.y + 139, 16);
 
-      if (this.fase.gemasVitoria > 0) {
-        // recompensa gorda do chefão: caixa + gemas
+      if (this.gemasChefeGanhas > 0) {
+        // gemas de chefe são exibidas somente quando realmente foram pagas
         ctx.fillStyle = "#8fdcff";
         ctx.font = "700 16px system-ui, sans-serif";
-        ctx.fillText(`🎁 +${this.fase.gemasVitoria} 💎`, CENTRO_X + 40, painel.y + 140);
+        ctx.fillText(`🎁 +${this.gemasChefeGanhas} 💎`, CENTRO_X + 40, painel.y + 140);
       } else if (this.gemasBonus3 > 0) {
         // bônus de gemas pela primeira 3★ na fase
         ctx.fillStyle = "#8fdcff";
         ctx.font = "700 15px system-ui, sans-serif";
         ctx.fillText(`3★ +${this.gemasBonus3} 💎`, CENTRO_X + 44, painel.y + 140);
+      }
+
+      if (this.reforcoInicialConcedido) {
+        ctx.fillStyle = "#ffd166";
+        ctx.font = "800 13px system-ui, sans-serif";
+        ctx.fillText(t("reforco_estagiario_recebido"), CENTRO_X, painel.y + 164);
       }
 
       const proxima: Botao = { x: painel.x + 30, y: painel.y + 178, w: painel.w - 60, h: 52, acao: "proxima" };

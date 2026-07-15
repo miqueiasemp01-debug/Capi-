@@ -74,5 +74,13 @@
   "caixa_sem_gemas": "Gemas insuficientes",
   "mapa_caixa": "Caixa",
   "celebra_serena": "GRANDE SERENA!",
+  "pre_fase_equipe": "Equipe ativa",
+  "pre_fase_recompensas": "Recompensas",
+  "pre_fase_capim_base": "capim + inimigos",
+  "pre_fase_replay_sem_gemas": "Replay: sem gemas extras",
+  "pre_fase_primeira_vitoria": "na primeira vitória",
+  "pre_fase_primeira_3": "na primeira conquista",
+  "pre_fase_enfrentar": "ENFRENTAR CHEFÃO",
+  "reforco_estagiario_recebido": "☕ Estagiário entrou na equipe!",
   "debug_hora": "+1h"
 }

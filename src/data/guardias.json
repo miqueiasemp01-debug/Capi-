@@ -36,6 +36,24 @@
     }
   },
   {
+    "id": "estagiario",
+    "nome": "Estagiário",
+    "raridade": "comum",
+    "anguloGrau": 25,
+    "danoBase": 1.4,
+    "cadenciaS": 0.5,
+    "alcance": 200,
+    "ataque": "Café arremessado: rápido e fraco",
+    "cor": "#a86f3d",
+    "habilidade": {
+      "nome": "Rajada de 5 cafés",
+      "tipo": "rajada_cafes",
+      "recargaS": 10,
+      "duracaoS": 0,
+      "descricao": "Arremessa uma rajada de 5 cafés nos inimigos"
+    }
+  },
+  {
     "id": "grande_serena",
     "nome": "Grande Serena",
     "raridade": "lendaria",

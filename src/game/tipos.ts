@@ -30,7 +30,7 @@ export interface ChefeDef {
   cicloS: number;
 }
 
-export type TipoHabilidade = "imobilizar_forte" | "sono_area";
+export type TipoHabilidade = "imobilizar_forte" | "sono_area" | "rajada_cafes";
 
 export interface HabilidadeDef {
   nome: string;
@@ -110,10 +110,16 @@ export interface EstadoEvento {
   sonequinha: EstadoSonequinha;
   resgateAte: number; // timestamp virtual do fim da janela de 6h
   reabreEm: number; // timestamp virtual da reabertura (24h após expirar)
-  cutsceneVista: boolean; // já mostrou a mini-cutscene do surto
+  cutsceneSurtoVista: boolean;
+  cutsceneCuraVista: boolean;
+  ofertaSerenaVista: boolean;
   serena: EstadoOferta;
   serenaAte: number; // timestamp virtual do fim da oferta de 48h
   caixaLiberada: boolean; // caixa do evento acessível (após a cura)
+}
+
+export interface EstadoJornada {
+  reforcoInicialConcedido: boolean;
 }
 
 export interface SaveData {
@@ -127,8 +133,10 @@ export interface SaveData {
   faseMaxima: number;
   estrelas: Record<string, number>;
   bonusEstrela3: Record<string, boolean>; // fases que já pagaram +2 gemas por 3★
+  gemasChefeRecebidas: Record<string, boolean>; // chefes que já pagaram gemas na 1ª vitória
   pityLendaria: number; // caixas abertas desde a última lendária (garante na 80ª)
   evento: EstadoEvento;
+  jornada: EstadoJornada;
   tutoriais: Record<string, boolean>;
   mute: boolean;
 }

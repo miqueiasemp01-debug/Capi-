@@ -4,15 +4,15 @@ import { biomaDaFase, ehChefe, poderRecomendado } from "../game/procedural";
 import { GUARDIAS, guardiaPorId } from "../game/conteudo";
 import { poderDaEquipe } from "../game/economia";
 import {
-  deveSurtar,
   guardiasAtivas,
+  marcarOfertaSerenaVista,
   missaoResgateAtiva,
   msRestantesOferta,
   msRestantesReabertura,
   msRestantesResgate,
   ofertaSerenaAtiva,
-  sincronizarEvento,
 } from "../game/evento";
+import { prepararFundacaoJornada, verificarNavegacao } from "../game/jornada";
 import { desenharBotao, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharLendariaProcedural } from "../game/desenhos";
@@ -36,15 +36,13 @@ export class CenaMapa implements Cena {
   private scrollInicio = 0;
   private maxFaseMostrada: number;
   private botoes: Botao[] = [];
-  private surtoPendente = false;
   private mostrarOferta = false;
   private celebracaoSerena = -9;
 
   constructor(private readonly jogo: Jogo) {
-    if (sincronizarEvento(jogo.dados)) jogo.salvar();
-    this.surtoPendente = deveSurtar(jogo.dados);
-    // abre a oferta da Serena automaticamente na 1ª vez que o mapa a vê ativa
-    if (ofertaSerenaAtiva(jogo.dados) && !jogo.dados.evento.cutsceneVista) this.mostrarOferta = true;
+    if (prepararFundacaoJornada(jogo.dados)) jogo.salvar();
+    // A oferta tem flag própria e só abre automaticamente uma vez.
+    if (ofertaSerenaAtiva(jogo.dados) && !jogo.dados.evento.ofertaSerenaVista) this.mostrarOferta = true;
 
     this.maxFaseMostrada = Math.max(8, jogo.dados.faseMaxima + FASES_VISIVEIS_ALEM);
     const atual = jogo.dados.faseMaxima + 1;
@@ -61,13 +59,13 @@ export class CenaMapa implements Cena {
 
   atualizar(dt: number): void {
     this.tempo += dt;
-    // roteia o surto no 1º quadro (não no construtor, pra não ser sobrescrito)
-    if (this.surtoPendente) {
-      this.surtoPendente = false;
-      this.jogo.irPara({ tela: "cutscene", tipo: "surto" });
+    const verificacao = verificarNavegacao(this.jogo.dados);
+    if (verificacao.mudou) this.jogo.salvar();
+    if (this.mostrarOferta && !ofertaSerenaAtiva(this.jogo.dados)) this.mostrarOferta = false;
+    if (verificacao.cutscene) {
+      this.jogo.irPara({ tela: "cutscene", tipo: verificacao.cutscene });
       return;
     }
-    if (sincronizarEvento(this.jogo.dados)) this.jogo.salvar();
     if (!this.arrastando) this.scrollX += (this.scrollAlvo - this.scrollX) * Math.min(1, dt * 8);
   }
 
@@ -87,7 +85,7 @@ export class CenaMapa implements Cena {
     const numero = this.noNaPosicao(x, y);
     if (numero !== null && numero <= this.jogo.dados.faseMaxima + 1) {
       somClique();
-      this.jogo.irPara({ tela: "fase", numero });
+      this.jogo.irPara({ tela: "pre_fase", numero });
     }
   }
 
@@ -414,7 +412,7 @@ export class CenaMapa implements Cena {
         dados.gemas -= PRECO_SERENA;
         dados.guardiasPossuidas.push("grande_serena");
         dados.evento.serena = "comprada";
-        dados.evento.cutsceneVista = true;
+        marcarOfertaSerenaVista(dados);
         this.jogo.salvar();
         somConquista();
         this.celebracaoSerena = this.tempo;
@@ -422,7 +420,7 @@ export class CenaMapa implements Cena {
       this.mostrarOferta = false;
     } else if (dentroDoBotao(fechar, x, y)) {
       somClique();
-      this.jogo.dados.evento.cutsceneVista = true;
+      marcarOfertaSerenaVista(this.jogo.dados);
       this.jogo.salvar();
       this.mostrarOferta = false;
     }
