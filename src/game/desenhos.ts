@@ -189,6 +189,12 @@ export function desenharGuardia(
     return;
   }
 
+  // lendárias ainda sem arte: desenho procedural caprichado (fallback)
+  if (def.raridade === "lendaria") {
+    desenharLendariaProcedural(ctx, def, x, y, tempo);
+    return;
+  }
+
   // ---- fallback procedural (Sessão 1), com estágio no tamanho ----
   const raioCorpo = estagio === "plena" ? 19 : estagio === "adulta" ? 17 : 15;
   ctx.save();
@@ -218,6 +224,102 @@ export function desenharGuardia(
   ctx.fillText(def.nome[0], x, y + 1);
   if (estagio !== "filhote") desenharEstrela(ctx, x + raioCorpo, y - raioCorpo, 5, "#ffd166");
   if (estagio === "plena") desenharEstrela(ctx, x - raioCorpo, y - raioCorpo, 5, "#ffd166");
+  ctx.restore();
+}
+
+// Lendárias procedurais (até chegar a arte): Grande Serena maior e grisalha
+// com aura dourada; Luz da Calma etérea azulada com brilho pulsante.
+export function desenharLendariaProcedural(
+  ctx: CanvasRenderingContext2D,
+  def: GuardiaDef,
+  x: number,
+  y: number,
+  tempo: number,
+): void {
+  const serena = def.id === "grande_serena";
+  const raio = serena ? 22 : 19;
+  ctx.save();
+
+  // vitória-régia
+  ctx.beginPath();
+  ctx.arc(x, y + 12, 30, 0, Math.PI * 2);
+  ctx.fillStyle = "#2e7d54";
+  ctx.fill();
+
+  // aura pulsante (dourada p/ Serena, azulada p/ Luz)
+  const pulso = 0.5 + 0.5 * Math.sin(tempo * 3);
+  const grad = ctx.createRadialGradient(x, y, raio * 0.4, x, y, raio * 2.1);
+  if (serena) {
+    grad.addColorStop(0, `rgba(255, 220, 120, ${0.35 + pulso * 0.25})`);
+    grad.addColorStop(1, "rgba(255, 220, 120, 0)");
+  } else {
+    grad.addColorStop(0, `rgba(120, 210, 255, ${0.4 + pulso * 0.3})`);
+    grad.addColorStop(1, "rgba(120, 210, 255, 0)");
+  }
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, raio * 2.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  // corpo
+  ctx.beginPath();
+  ctx.arc(x, y, raio, 0, Math.PI * 2);
+  ctx.fillStyle = serena ? "#b9a789" : "#7fbfe0";
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = serena ? "#e8c977" : "#bfe8ff";
+  ctx.stroke();
+
+  // barriga clara
+  ctx.beginPath();
+  ctx.ellipse(x, y + raio * 0.35, raio * 0.55, raio * 0.42, 0, 0, Math.PI * 2);
+  ctx.fillStyle = serena ? "rgba(240,235,220,0.6)" : "rgba(235,250,255,0.6)";
+  ctx.fill();
+
+  // orelhas
+  for (const lado of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(x + lado * raio * 0.62, y - raio * 0.72, raio * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = serena ? "#a89778" : "#6fb0d4";
+    ctx.fill();
+  }
+
+  // focinho + olhos serenos (fechados)
+  ctx.beginPath();
+  ctx.ellipse(x, y + raio * 0.3, raio * 0.5, raio * 0.36, 0, 0, Math.PI * 2);
+  ctx.fillStyle = serena ? "#cbb88f" : "#a5d4ee";
+  ctx.fill();
+  ctx.strokeStyle = "#4a3a20";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  for (const lado of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(x + lado * raio * 0.34, y - raio * 0.05, raio * 0.16, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+
+  if (serena) {
+    // "cabelo" grisalho: tufos claros no topo
+    ctx.fillStyle = "#eef0ee";
+    for (const dx of [-0.5, 0, 0.5]) {
+      ctx.beginPath();
+      ctx.arc(x + dx * raio, y - raio * 0.85, raio * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // coroa de anciã
+    desenharEstrela(ctx, x, y - raio - 8, 7, "#ffd24a", tempo);
+  } else {
+    // partículas etéreas girando
+    for (let i = 0; i < 4; i++) {
+      const a = tempo * 1.5 + (i * Math.PI) / 2;
+      const r = raio * 1.5;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * r, y + Math.sin(a) * r, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(200, 240, 255, 0.9)";
+      ctx.fill();
+    }
+  }
+
   ctx.restore();
 }
 

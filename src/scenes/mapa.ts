@@ -1,16 +1,31 @@
 import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import { biomaDaFase, ehChefe, poderRecomendado } from "../game/procedural";
-import { GUARDIAS } from "../game/conteudo";
+import { GUARDIAS, guardiaPorId } from "../game/conteudo";
 import { poderDaEquipe } from "../game/economia";
-import { desenharBotao, tracarRetanguloArredondado, registrarPressao, type Botao } from "../game/ui";
+import {
+  deveSurtar,
+  guardiasAtivas,
+  missaoResgateAtiva,
+  msRestantesOferta,
+  msRestantesReabertura,
+  msRestantesResgate,
+  ofertaSerenaAtiva,
+  sincronizarEvento,
+} from "../game/evento";
+import { desenharBotao, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
 import { desenharPilulaRecurso } from "../game/icones";
-import { estaMutado, definirMute, somClique } from "../game/sfx";
+import { desenharLendariaProcedural } from "../game/desenhos";
+import { estaMutado, definirMute, somClique, somConquista } from "../game/sfx";
+import { ehDebug, adiantarUmaHora, formatarIntervalo } from "../game/tempo";
+import { FASE_RESGATE } from "../game/evento";
 import { t } from "../i18n/textos";
 
-const ESPACO_NO = 96; // distância horizontal entre nós
+const ESPACO_NO = 96;
 const Y_TRILHA = 300;
-const FASES_VISIVEIS_ALEM = 6; // quantas fases além da máxima aparecem
+const FASES_VISIVEIS_ALEM = 6;
+const PRECO_SERENA = 60;
+const PRECO_SERENA_CHEIO = 200;
 
 export class CenaMapa implements Cena {
   private tempo = 0;
@@ -19,54 +34,56 @@ export class CenaMapa implements Cena {
   private arrastando = false;
   private arrastouDe = 0;
   private scrollInicio = 0;
-  private moveu = false;
   private maxFaseMostrada: number;
   private botoes: Botao[] = [];
+  private surtoPendente = false;
+  private mostrarOferta = false;
+  private celebracaoSerena = -9;
 
   constructor(private readonly jogo: Jogo) {
-    // mostra até um tanto além da última liberada; mínimo 8 nós
+    if (sincronizarEvento(jogo.dados)) jogo.salvar();
+    this.surtoPendente = deveSurtar(jogo.dados);
+    // abre a oferta da Serena automaticamente na 1ª vez que o mapa a vê ativa
+    if (ofertaSerenaAtiva(jogo.dados) && !jogo.dados.evento.cutsceneVista) this.mostrarOferta = true;
+
     this.maxFaseMostrada = Math.max(8, jogo.dados.faseMaxima + FASES_VISIVEIS_ALEM);
-    // centraliza no nó "atual" (próxima fase a jogar)
     const atual = jogo.dados.faseMaxima + 1;
     this.scrollAlvo = this.scrollDoNo(atual);
     this.scrollX = this.scrollAlvo;
   }
 
   private scrollDoNo(numero: number): number {
-    // posição X do nó no mundo, menos metade da tela pra centralizar
     return (numero - 1) * ESPACO_NO - LARGURA / 2 + 40;
   }
-
   private limitarScroll(v: number): number {
-    const min = this.scrollDoNo(1);
-    const max = this.scrollDoNo(this.maxFaseMostrada);
-    return Math.max(min, Math.min(max, v));
+    return Math.max(this.scrollDoNo(1), Math.min(this.scrollDoNo(this.maxFaseMostrada), v));
   }
 
   atualizar(dt: number): void {
     this.tempo += dt;
-    if (!this.arrastando) {
-      this.scrollX += (this.scrollAlvo - this.scrollX) * Math.min(1, dt * 8);
+    // roteia o surto no 1º quadro (não no construtor, pra não ser sobrescrito)
+    if (this.surtoPendente) {
+      this.surtoPendente = false;
+      this.jogo.irPara({ tela: "cutscene", tipo: "surto" });
+      return;
     }
+    if (sincronizarEvento(this.jogo.dados)) this.jogo.salvar();
+    if (!this.arrastando) this.scrollX += (this.scrollAlvo - this.scrollX) * Math.min(1, dt * 8);
   }
 
-  // O motor só entrega toques simples; simulo arrasto por pointer aqui via
-  // aoTocar (down) + heurística de distância no próprio clique não basta,
-  // então uso os handlers de pointer globais registrados no construtor? Não —
-  // mantemos simples: toque = tenta abrir nó; arrasto é feito por gesto nativo
-  // interpretado como toques sucessivos. Para deslizar de fato, uso os botões
-  // de seta nas bordas + arrasto por pointermove ligado ao canvas.
   aoTocar(x: number, y: number): void {
-    // se tocou num botão de UI, executa
+    if (this.mostrarOferta) {
+      this.tocarNaOferta(x, y);
+      return;
+    }
     for (const b of this.botoes) {
-      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+      if (dentroDoBotao(b, x, y)) {
         somClique();
         registrarPressao(b.acao);
         this.executar(b.acao);
         return;
       }
     }
-    // senão, tenta abrir um nó de fase
     const numero = this.noNaPosicao(x, y);
     if (numero !== null && numero <= this.jogo.dados.faseMaxima + 1) {
       somClique();
@@ -76,10 +93,12 @@ export class CenaMapa implements Cena {
 
   private executar(acao: string): void {
     if (acao === "equipe") this.jogo.irPara({ tela: "equipe" });
-    else if (acao === "titulo") this.jogo.irPara({ tela: "titulo" });
+    else if (acao === "caixa") this.jogo.irPara({ tela: "caixa" });
+    else if (acao === "oferta") this.mostrarOferta = true;
     else if (acao === "mute") definirMute(this.alternarMute());
     else if (acao === "esq") this.scrollAlvo = this.limitarScroll(this.scrollAlvo - ESPACO_NO * 3);
     else if (acao === "dir") this.scrollAlvo = this.limitarScroll(this.scrollAlvo + ESPACO_NO * 3);
+    else if (acao === "debug1h") adiantarUmaHora();
   }
 
   private alternarMute(): boolean {
@@ -99,32 +118,27 @@ export class CenaMapa implements Cena {
     return null;
   }
 
-  // suporte a arrasto: chamados pelo motor via ponteiros (ver conexão em motor)
   aoArrastarInicio(x: number): void {
     this.arrastando = true;
     this.arrastouDe = x;
     this.scrollInicio = this.scrollX;
-    this.moveu = false;
   }
   aoArrastar(x: number): void {
-    if (!this.arrastando) return;
+    if (!this.arrastando || this.mostrarOferta) return;
     const d = this.arrastouDe - x;
-    if (Math.abs(d) > 6) this.moveu = true;
     this.scrollX = this.limitarScroll(this.scrollInicio + d);
     this.scrollAlvo = this.scrollX;
   }
   aoArrastarFim(): void {
     this.arrastando = false;
   }
-  arrastouDeVerdade(): boolean {
-    return this.moveu;
-  }
+
+  // -------------------------------------------------------------- desenho
 
   desenhar(ctx: CanvasRenderingContext2D): void {
     this.botoes = [];
     const dados = this.jogo.dados;
 
-    // fundo do bioma do trecho central visível
     const faseCentral = Math.max(1, Math.round(this.scrollX / ESPACO_NO) + 1);
     const bioma = biomaDaFase(faseCentral);
     const grad = ctx.createLinearGradient(0, 0, 0, ALTURA);
@@ -133,10 +147,9 @@ export class CenaMapa implements Cena {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
-    // banner de evento reservado no topo
-    this.desenharBannerEvento(ctx);
+    this.desenharBanner(ctx);
 
-    // trilha (linha ligando os nós)
+    // trilha
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 6;
     ctx.setLineDash([2, 14]);
@@ -151,13 +164,13 @@ export class CenaMapa implements Cena {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // nós
     const atual = dados.faseMaxima + 1;
     for (let n = 1; n <= this.maxFaseMostrada; n++) {
       const nx = (n - 1) * ESPACO_NO - this.scrollX;
       if (nx < -60 || nx > LARGURA + 60) continue;
       const ny = Y_TRILHA + Math.sin(n * 0.9) * 42;
-      this.desenharNo(ctx, n, nx, ny, n === atual, n <= atual, dados.estrelas[String(n)] ?? 0);
+      const marcaResgate = n === FASE_RESGATE && missaoResgateAtiva(dados);
+      this.desenharNo(ctx, n, nx, ny, n === atual, n <= atual, dados.estrelas[String(n)] ?? 0, marcaResgate);
     }
 
     // cabeçalho
@@ -169,45 +182,133 @@ export class CenaMapa implements Cena {
     desenharPilulaRecurso(ctx, LARGURA - 14, 96, "capim", dados.capim);
     desenharPilulaRecurso(ctx, LARGURA - 110, 96, "gema", dados.gemas);
 
-    // setas de navegação
+    // setas
     const setaEsq: Botao = { x: 6, y: Y_TRILHA - 24, w: 40, h: 48, acao: "esq" };
     const setaDir: Botao = { x: LARGURA - 46, y: Y_TRILHA - 24, w: 40, h: 48, acao: "dir" };
     this.desenharSeta(ctx, setaEsq, "‹");
     this.desenharSeta(ctx, setaDir, "›");
+    this.botoes.push(setaEsq, setaDir);
 
-    // rodapé: botão flutuante da Equipe + mute
-    const equipe: Botao = { x: 40, y: ALTURA - 96, w: LARGURA - 120, h: 60, acao: "equipe" };
-    desenharBotao(ctx, equipe, `⚔ ${t("mapa_equipe")}`, { cor: "#3d9c63", tamanhoFonte: 20 });
-    this.botoes.push(equipe);
+    // rodapé: [Caixa?] Equipe + mute
+    const temCaixa = dados.evento.caixaLiberada;
+    if (temCaixa) {
+      const caixa: Botao = { x: 16, y: ALTURA - 96, w: 96, h: 60, acao: "caixa" };
+      desenharBotao(ctx, caixa, `🎁 ${t("mapa_caixa")}`, { cor: "#b06fe0", tamanhoFonte: 15 });
+      this.botoes.push(caixa);
+      const equipe: Botao = { x: 122, y: ALTURA - 96, w: LARGURA - 200, h: 60, acao: "equipe" };
+      desenharBotao(ctx, equipe, `⚔ ${t("mapa_equipe")}`, { cor: "#3d9c63", tamanhoFonte: 17 });
+      this.botoes.push(equipe);
+    } else {
+      const equipe: Botao = { x: 40, y: ALTURA - 96, w: LARGURA - 120, h: 60, acao: "equipe" };
+      desenharBotao(ctx, equipe, `⚔ ${t("mapa_equipe")}`, { cor: "#3d9c63", tamanhoFonte: 20 });
+      this.botoes.push(equipe);
+    }
 
     const mute: Botao = { x: LARGURA - 72, y: ALTURA - 94, w: 56, h: 56, acao: "mute" };
     this.desenharMute(ctx, mute);
-    this.botoes.push(mute, setaEsq, setaDir);
+    this.botoes.push(mute);
 
-    // dica de poder atual (discreta)
+    // poder (guardiãs ATIVAS)
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.font = "600 13px system-ui, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`⚡ ${t("equipe_poder")}: ${poderDaEquipe(GUARDIAS, dados)}`, LARGURA / 2, ALTURA - 118);
+    ctx.fillText(`⚡ ${t("equipe_poder")}: ${poderDaEquipe(guardiasAtivas(GUARDIAS, dados), dados)}`, LARGURA / 2, ALTURA - 116);
+
+    // botão de debug +1h
+    if (ehDebug()) {
+      const b: Botao = { x: 8, y: 8, w: 48, h: 30, acao: "debug1h" };
+      tracarRetanguloArredondado(ctx, b.x, b.y, b.w, b.h, 8);
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fill();
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "700 13px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(t("debug_hora"), b.x + b.w / 2, b.y + b.h / 2);
+      this.botoes.push(b);
+    }
+
+    // celebração ao comprar a Serena
+    if (this.tempo - this.celebracaoSerena < 1.6) this.desenharCelebracaoSerena(ctx);
+
+    if (this.mostrarOferta) this.desenharOferta(ctx);
   }
 
-  private desenharBannerEvento(ctx: CanvasRenderingContext2D): void {
+  // Banner de topo: muda conforme o estado do evento.
+  private desenharBanner(ctx: CanvasRenderingContext2D): void {
+    const dados = this.jogo.dados;
     const x = 14;
     const y = 116;
     const w = LARGURA - 28;
-    tracarRetanguloArredondado(ctx, x, y, w, 40, 12);
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    const h = 44;
+
+    let cor = "rgba(0,0,0,0.28)";
+    let borda = "rgba(255,255,255,0.25)";
+    let acao: string | null = null;
+
+    if (missaoResgateAtiva(dados)) {
+      cor = "rgba(120, 30, 30, 0.55)";
+      borda = "#e0463d";
+    } else if (dados.evento.sonequinha === "perdida") {
+      cor = "rgba(60, 40, 80, 0.5)";
+      borda = "rgba(180,140,220,0.5)";
+    } else if (ofertaSerenaAtiva(dados)) {
+      cor = "rgba(90, 70, 20, 0.55)";
+      borda = "#ffd24a";
+      acao = "oferta";
+    }
+
+    tracarRetanguloArredondado(ctx, x, y, w, h, 12);
+    ctx.fillStyle = cor;
     ctx.fill();
-    ctx.setLineDash([6, 6]);
+    ctx.setLineDash(acao || borda.startsWith("#") ? [] : [6, 6]);
     ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.strokeStyle = borda;
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    ctx.font = "600 14px system-ui, sans-serif";
-    ctx.textAlign = "center";
+
     ctx.textBaseline = "middle";
-    ctx.fillText(`✨ ${t("mapa_banner_evento")}`, LARGURA / 2, y + 20);
+    if (missaoResgateAtiva(dados)) {
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#fff";
+      ctx.font = "800 14px system-ui, sans-serif";
+      ctx.fillText(t("missao_salve_titulo"), x + 12, y + 15);
+      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.fillText(t("missao_salve_desc"), x + 12, y + 32);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "800 16px system-ui, sans-serif";
+      ctx.fillText(`⏳ ${formatarIntervalo(msRestantesResgate(dados))}`, x + w - 12, y + 22);
+    } else if (dados.evento.sonequinha === "perdida") {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "600 12px system-ui, sans-serif";
+      ctx.fillText(t("missao_reabre"), LARGURA / 2, y + 15);
+      ctx.fillStyle = "#c9a2e0";
+      ctx.font = "700 13px system-ui, sans-serif";
+      ctx.fillText(`${t("missao_reabre_em")} ${formatarIntervalo(msRestantesReabertura(dados))}`, LARGURA / 2, y + 32);
+    } else if (ofertaSerenaAtiva(dados)) {
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#ffd166";
+      ctx.font = "800 14px system-ui, sans-serif";
+      ctx.fillText(t("oferta_banner"), x + 12, y + 16);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.font = "600 11px system-ui, sans-serif";
+      ctx.fillText("Toque para ver a oferta", x + 12, y + 32);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#fff";
+      ctx.font = "700 13px system-ui, sans-serif";
+      ctx.fillText(`⏳ ${formatarIntervalo(msRestantesOferta(dados))}`, x + w - 12, y + 22);
+    } else {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.font = "600 14px system-ui, sans-serif";
+      ctx.fillText(`✨ ${t("mapa_banner_evento")}`, LARGURA / 2, y + 22);
+    }
+
+    if (acao) this.botoes.push({ x, y, w, h, acao });
   }
 
   private desenharNo(
@@ -218,16 +319,16 @@ export class CenaMapa implements Cena {
     atual: boolean,
     liberada: boolean,
     estrelas: number,
+    marcaResgate: boolean,
   ): void {
     const chefe = ehChefe(numero);
     const r = chefe ? 32 : 25;
 
-    if (atual) {
-      // halo pulsando no nó atual
+    if (atual || marcaResgate) {
       const pulso = 1 + 0.18 * Math.sin(this.tempo * 4);
       ctx.beginPath();
       ctx.arc(x, y, r * 1.5 * pulso, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255, 220, 130, 0.22)";
+      ctx.fillStyle = marcaResgate ? "rgba(224, 70, 61, 0.3)" : "rgba(255, 220, 130, 0.22)";
       ctx.fill();
     }
 
@@ -259,13 +360,10 @@ export class CenaMapa implements Cena {
     }
 
     if (chefe) {
-      // coroa
-      ctx.fillStyle = "#ffd24a";
       ctx.font = "700 18px system-ui, sans-serif";
-      ctx.fillText("👑", x, y - r - 8);
+      ctx.fillText(marcaResgate ? "🆘" : "👑", x, y - r - 8);
     }
 
-    // estrelas conquistadas
     if (estrelas > 0) {
       ctx.font = "400 12px system-ui, sans-serif";
       ctx.fillStyle = "#ffd166";
@@ -276,7 +374,6 @@ export class CenaMapa implements Cena {
       ctx.fillText("☆☆☆", x, y + r + 11);
     }
 
-    // poder recomendado abaixo (discreto) no nó atual
     if (atual) {
       ctx.font = "600 11px system-ui, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -304,5 +401,118 @@ export class CenaMapa implements Cena {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(estaMutado() ? "🔇" : "🔊", b.x + b.w / 2, b.y + b.h / 2 + 1);
+  }
+
+  // ------------------------------------------------------- oferta da Serena
+
+  private tocarNaOferta(x: number, y: number): void {
+    const comprar: Botao = { x: 50, y: 470, w: LARGURA - 100, h: 56, acao: "comprar" };
+    const fechar: Botao = { x: 50, y: 534, w: LARGURA - 100, h: 40, acao: "fechar" };
+    if (dentroDoBotao(comprar, x, y)) {
+      const dados = this.jogo.dados;
+      if (dados.gemas >= PRECO_SERENA) {
+        dados.gemas -= PRECO_SERENA;
+        dados.guardiasPossuidas.push("grande_serena");
+        dados.evento.serena = "comprada";
+        dados.evento.cutsceneVista = true;
+        this.jogo.salvar();
+        somConquista();
+        this.celebracaoSerena = this.tempo;
+      }
+      this.mostrarOferta = false;
+    } else if (dentroDoBotao(fechar, x, y)) {
+      somClique();
+      this.jogo.dados.evento.cutsceneVista = true;
+      this.jogo.salvar();
+      this.mostrarOferta = false;
+    }
+  }
+
+  private desenharOferta(ctx: CanvasRenderingContext2D): void {
+    const dados = this.jogo.dados;
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    const px = 34;
+    const py = 150;
+    const pw = LARGURA - 68;
+    const ph = 440;
+    tracarRetanguloArredondado(ctx, px, py, pw, ph, 20);
+    ctx.fillStyle = "#2a2036";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#ffd24a";
+    ctx.stroke();
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffd166";
+    ctx.font = "800 20px system-ui, sans-serif";
+    ctx.fillText(t("oferta_serena_titulo"), LARGURA / 2, py + 34);
+
+    const serena = guardiaPorId("grande_serena");
+    if (serena) desenharLendariaProcedural(ctx, serena, LARGURA / 2, py + 130, this.tempo);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "800 18px system-ui, sans-serif";
+    ctx.fillText(t("oferta_serena_nome"), LARGURA / 2, py + 210);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = "500 14px system-ui, sans-serif";
+    ctx.fillText(t("oferta_serena_desc"), LARGURA / 2, py + 236, pw - 30);
+
+    // preço riscado
+    ctx.font = "600 16px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    const cheio = `${PRECO_SERENA_CHEIO}💎`;
+    const larguraCheio = ctx.measureText(cheio).width;
+    ctx.fillText(cheio, LARGURA / 2 - 40, py + 274);
+    ctx.strokeStyle = "#e0463d";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(LARGURA / 2 - 40 - larguraCheio / 2, py + 274);
+    ctx.lineTo(LARGURA / 2 - 40 + larguraCheio / 2, py + 274);
+    ctx.stroke();
+    ctx.fillStyle = "#ffd166";
+    ctx.font = "800 22px system-ui, sans-serif";
+    ctx.fillText(`${PRECO_SERENA}💎 (−70%)`, LARGURA / 2 + 40, py + 274);
+
+    // contador
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.fillText(`⏳ ${t("oferta_expira")} ${formatarIntervalo(msRestantesOferta(dados))}`, LARGURA / 2, py + 300);
+
+    const podePagar = dados.gemas >= PRECO_SERENA;
+    const comprar: Botao = { x: 50, y: 470, w: LARGURA - 100, h: 56, acao: "comprar" };
+    desenharBotao(ctx, comprar, `${t("oferta_comprar")} ${PRECO_SERENA}💎`, {
+      cor: podePagar ? "#3d9c63" : "#4a4a5a", desativado: !podePagar, tamanhoFonte: 18,
+    });
+    const fechar: Botao = { x: 50, y: 534, w: LARGURA - 100, h: 40, acao: "fechar" };
+    desenharBotao(ctx, fechar, t("botao_voltar"), { cor: "#5a4a70", tamanhoFonte: 14 });
+  }
+
+  private desenharCelebracaoSerena(ctx: CanvasRenderingContext2D): void {
+    const idade = this.tempo - this.celebracaoSerena;
+    const flash = Math.max(0, 1 - idade / 0.3);
+    if (flash > 0) {
+      ctx.fillStyle = `rgba(255, 252, 235, ${0.6 * flash})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+    const entrada = Math.min(1, idade / 0.18);
+    const escala = entrada * (1 + 0.35 * Math.sin(entrada * Math.PI));
+    const saida = Math.max(0, Math.min(1, (1.6 - idade) / 0.35));
+    ctx.save();
+    ctx.globalAlpha = saida;
+    ctx.translate(LARGURA / 2, 300);
+    ctx.scale(escala, escala);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "800 30px system-ui, sans-serif";
+    ctx.lineWidth = 8;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(60,30,0,0.9)";
+    ctx.strokeText(t("celebra_serena"), 0, 0);
+    ctx.fillStyle = "#ffd166";
+    ctx.fillText(t("celebra_serena"), 0, 0);
+    ctx.restore();
   }
 }

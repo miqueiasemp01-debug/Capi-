@@ -22,6 +22,10 @@ const PERSONAGENS = [
   { arquivo: "marimbondo", id: "marimbondo" },
   { arquivo: "celular", id: "celular_surto" },
   { arquivo: "celular_surto", id: "celular_surto" },
+  // lendárias: sem arte ainda (desenho procedural no jogo). Quando o .jpg
+  // chegar em /assets, o pipeline já inclui automaticamente no manifesto.
+  { arquivo: "grande_serena", id: "grande_serena" },
+  { arquivo: "luz_da_calma", id: "luz_da_calma" },
 ];
 const CENARIOS = ["fundo-lago", "splash"];
 

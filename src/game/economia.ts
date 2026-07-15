@@ -68,13 +68,21 @@ export function valorDeCombate(guardia: GuardiaDef, nivel: number): number {
   return (danoDaGuardia(guardia, nivel) / guardia.cadenciaS) * MULTIPLICADOR_RARIDADE[guardia.raridade];
 }
 
+// Aura da Grande Serena: +X% de dano pra TODAS as fontes (guardiãs, Capi, Toque).
+export function auraMultiplicador(guardias: GuardiaDef[]): number {
+  const pct = guardias.reduce((soma, g) => soma + (g.auraDanoPct ?? 0), 0);
+  return 1 + pct / 100;
+}
+
 // A régua central do jogo: é este número que o jogador compara com o
-// "poder recomendado" da fase antes de entrar. Soma guardiãs + Toque + Capi.
+// "poder recomendado" da fase. Soma as guardiãs ATIVAS (já filtradas por
+// posse/bloqueio) + Toque + Capi, com a aura aplicada por cima.
 export function poderDaEquipe(guardias: GuardiaDef[], dados: SaveData): number {
   const somaGuardias = guardias.reduce(
     (soma, g) => soma + valorDeCombate(g, nivelDaGuardia(dados, g.id)),
     0,
   );
   const dpsCapi = danoDaCapi(dados.capiAtaqueNivel) / CAPI_INTERVALO_ONDA_S * 1.6;
-  return Math.round(somaGuardias + danoDoToque(dados.toqueNivel) * 2 + dpsCapi);
+  const bruto = somaGuardias + danoDoToque(dados.toqueNivel) * 2 + dpsCapi;
+  return Math.round(bruto * auraMultiplicador(guardias));
 }

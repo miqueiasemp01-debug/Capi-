@@ -51,6 +51,9 @@ export interface GuardiaDef {
   ataque: string;
   cor: string;
   habilidade: HabilidadeDef;
+  // passivas de lendárias (opcionais)
+  auraDanoPct?: number; // Grande Serena: +X% de dano pra todas
+  acalmaMaisForteS?: number; // Luz da Calma: acalma o comum mais forte a cada Xs
 }
 
 // Um inimigo já resolvido pela geração procedural: stats escalados pra fase.
@@ -95,6 +98,24 @@ export interface FaseGerada {
   eventos: EventoGerado[];
 }
 
+// Estado da Sonequinha na saga "O Surto ataca".
+//  normal   → antes do evento (jogável)
+//  surtada  → sequestrada, janela de resgate de 6h ativa (resgateAte)
+//  perdida  → 6h expiraram; reabre sozinha em 24h (reabreEm)
+//  curada   → resgatada de volta (dispara a oferta da Serena)
+export type EstadoSonequinha = "normal" | "surtada" | "perdida" | "curada";
+export type EstadoOferta = "nenhuma" | "ativa" | "comprada" | "expirada";
+
+export interface EstadoEvento {
+  sonequinha: EstadoSonequinha;
+  resgateAte: number; // timestamp virtual do fim da janela de 6h
+  reabreEm: number; // timestamp virtual da reabertura (24h após expirar)
+  cutsceneVista: boolean; // já mostrou a mini-cutscene do surto
+  serena: EstadoOferta;
+  serenaAte: number; // timestamp virtual do fim da oferta de 48h
+  caixaLiberada: boolean; // caixa do evento acessível (após a cura)
+}
+
 export interface SaveData {
   capim: number;
   gemas: number;
@@ -102,8 +123,12 @@ export interface SaveData {
   capiAtaqueNivel: number;
   capiCalmaNivel: number;
   guardiaNiveis: Record<string, number>;
+  guardiasPossuidas: string[]; // quais guardiãs o jogador tem
   faseMaxima: number;
   estrelas: Record<string, number>;
+  bonusEstrela3: Record<string, boolean>; // fases que já pagaram +2 gemas por 3★
+  pityLendaria: number; // caixas abertas desde a última lendária (garante na 80ª)
+  evento: EstadoEvento;
   tutoriais: Record<string, boolean>;
   mute: boolean;
 }

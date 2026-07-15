@@ -187,6 +187,30 @@ trabalho e engole exceções isoladas; falha persistente vira tela amigável
 **"Ops! Recarregar"** (`erros.ts` + `window.onerror`/`unhandledrejection`). O save
 antigo **migra sem quebrar** (campos novos ganham default; o progresso vira posição no mapa).
 
+## 9-E. Evento "Salve a Sonequinha" + caixas com garantia (v2.2)
+
+Primeiro evento LiveOps, todo dirigido por **timestamps no save** (relógio em
+`tempo.ts`; com `?debug` na URL o tempo corre 360× + botão "+1h" pra testar).
+
+- **A saga da Sonequinha:** na 1ª vitória com `faseMaxima ≥ 3`, o Surto a leva
+  (mini-cutscene de 2 painéis, olhos de espiral, som sinistro). Ela fica
+  **bloqueada** — retrato acinzentado 😵‍💫, fora de campo, e o Poder cai de verdade.
+  No mapa, a missão **"🆘 Salve a Sonequinha — vença o Chefão da fase 10"** com
+  **cronômetro real de 6h**. Vencer na janela → **cura** com celebração grande.
+  Se expirar: **sem perda permanente** — reabre sozinha 24h depois.
+- **Oferta relâmpago (pós-cura):** a **Grande Serena** (lendária, aura passiva
+  +25% de dano pra todas) por **60 gemas de 200 (−70%)**, contador de **48h**.
+- **Caixa do Surto (gacha honesto):** 25 gemas. **Decisão registrada — Luz da
+  Calma (2ª lendária): 0,5% de chance, com pity que GARANTE na 80ª caixa**,
+  contador visível. Botão "Ver chances" com odds exatas (transparência é lei).
+  Duplicata de lendária → 500 de capim. Abertura com 1,5s de suspense e revelação
+  colorida por raridade.
+- **Fontes de gema pro ciclo se sustentar:** chefões (já existia) + **primeira 3★
+  numa fase → +2 gemas**.
+- **Lendárias sem arte ainda:** desenho procedural (Serena grisalha com aura
+  dourada; Luz da Calma etérea azulada). Quando o `.jpg` chegar em `/assets`, o
+  pipeline já as inclui — nada mais a mexer.
+
 ## 10. Conformidade TikTok (mantida e válida na v2)
 F2P ✔ · compras sem saque/valor externo ✔ · caixas = "produto surpresa" com recompensa garantida + odds públicas + pity ✔ · rewarded obrigatório ✔ · sem aposta/prêmio em dinheiro ✔ · conteúdo leve sem violência (inimigos dormem) ✔ · pacote <50 MB ✔.
 
@@ -265,6 +289,15 @@ Protótipo de referência: referencia/prototipo-v02.html
 ---
 
 ## Changelog
+
+### v2.2 — O Surto ataca: evento + caixas com garantia
+- **Evento "Salve a Sonequinha"**: cutscene do surto, guardiã bloqueada (Poder cai), missão com cronômetro real de 6h, cura com celebração, reabertura automática em 24h se expirar (sem perda permanente).
+- **Oferta relâmpago 48h** da Grande Serena (lendária, aura +25%) por 60 gemas (−70%).
+- **Caixa do Surto**: gacha honesto — Luz da Calma (lendária) 0,5% + **pity garantido na 80ª**, "Ver chances" com odds exatas, duplicata → 500 capim, animação de 1,5s.
+- **Fonte de gemas**: primeira 3★ numa fase → +2 gemas.
+- **Lendárias procedurais** (Serena grisalha com aura; Luz da Calma azulada) prontas pra receber arte via `/assets`.
+- **Modo teste de tempo** (`?debug`): cronômetros 360× + botão "+1h".
+- **Fluxo**: commit direto na `main` com trava obrigatória (build + simulador verdes). Save antigo migra sem quebrar.
 
 ### v2.1 — Mapa, fases infinitas e identidade de combate
 - **Fases procedurais** (seed = número da fase) substituem o `fases.json` fixo — suporta 100+ fases sem editar dados. Curva/mix/chefes em `curva.json` + `inimigos.json` + `chefes.json`.

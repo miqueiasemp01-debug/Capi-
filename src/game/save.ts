@@ -1,6 +1,18 @@
-import type { SaveData } from "./tipos";
+import type { EstadoEvento, SaveData } from "./tipos";
 
 const CHAVE = "capivara-impossivel:save:v1";
+
+function eventoPadrao(): EstadoEvento {
+  return {
+    sonequinha: "normal",
+    resgateAte: 0,
+    reabreEm: 0,
+    cutsceneVista: false,
+    serena: "nenhuma",
+    serenaAte: 0,
+    caixaLiberada: false,
+  };
+}
 
 function savePadrao(): SaveData {
   return {
@@ -10,8 +22,12 @@ function savePadrao(): SaveData {
     capiAtaqueNivel: 1,
     capiCalmaNivel: 1,
     guardiaNiveis: {},
+    guardiasPossuidas: ["boiadeira", "sonequinha"],
     faseMaxima: 0,
     estrelas: {},
+    bonusEstrela3: {},
+    pityLendaria: 0,
+    evento: eventoPadrao(),
     tutoriais: {},
     mute: false,
   };
@@ -24,12 +40,29 @@ export interface Save {
   salvar(dados: SaveData): void;
 }
 
+// Migração robusta: mescla defaults com o save antigo, campo a campo, sem
+// quebrar. Saves da Sessão 1–5 ganham posse padrão + estado de evento zerado.
+function migrar(bruto: Partial<SaveData>): SaveData {
+  const padrao = savePadrao();
+  const dados: SaveData = { ...padrao, ...bruto };
+  dados.evento = { ...padrao.evento, ...(bruto.evento ?? {}) };
+  dados.bonusEstrela3 = bruto.bonusEstrela3 ?? {};
+  // posse: garante as iniciais + quaisquer guardiãs já evoluídas em saves antigos
+  const possuidas = new Set(bruto.guardiasPossuidas ?? ["boiadeira", "sonequinha"]);
+  possuidas.add("boiadeira");
+  possuidas.add("sonequinha");
+  for (const id of Object.keys(bruto.guardiaNiveis ?? {})) possuidas.add(id);
+  dados.guardiasPossuidas = [...possuidas];
+  dados.pityLendaria = bruto.pityLendaria ?? 0;
+  return dados;
+}
+
 class SaveLocal implements Save {
   carregar(): SaveData {
     try {
       const bruto = localStorage.getItem(CHAVE);
       if (!bruto) return savePadrao();
-      return { ...savePadrao(), ...(JSON.parse(bruto) as Partial<SaveData>) };
+      return migrar(JSON.parse(bruto) as Partial<SaveData>);
     } catch {
       return savePadrao();
     }

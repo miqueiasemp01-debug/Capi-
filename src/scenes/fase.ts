@@ -5,6 +5,7 @@ import { GUARDIAS } from "../game/conteudo";
 import { gerarFase } from "../game/procedural";
 import {
   CAPI_INTERVALO_ONDA_S,
+  auraMultiplicador,
   calmaMaximaBonus,
   danoDaCapi,
   danoDaGuardia,
@@ -12,6 +13,7 @@ import {
   estagioDaGuardia,
   nivelDaGuardia,
 } from "../game/economia";
+import { curarSonequinha, guardiasAtivas, missaoResgateAtiva } from "../game/evento";
 import { desenharCapi, desenharChefe, desenharGuardia, desenharImagemCobrindo, desenharInimigo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharIconeCapim, desenharPilulaRecurso } from "../game/icones";
@@ -120,11 +122,15 @@ export class CenaFase implements Cena {
   private estrelas = 0;
   private tratados = 0;
   private totalInimigos: number;
+  private curou = false; // curou a Sonequinha nesta vitória (chefão da 10)
+  private gemasBonus3 = 0; // +gemas de 3★ pela 1ª vez
 
   private proximoEvento = 0;
   private inimigos: Inimigo[] = [];
   private readonly guardias: GuardiaEmCampo[];
+  private readonly auraMult: number;
   private proximaOndaCapi = CAPI_INTERVALO_ONDA_S;
+  private proximaLuzCalma = 0; // recarga da passiva da Luz da Calma
   private efeitos: Efeito[] = [];
   private flutuantes: Flutuante[] = [];
   private ondas: Onda[] = [];
@@ -143,9 +149,16 @@ export class CenaFase implements Cena {
     this.calma = this.calmaMax;
     this.totalInimigos = this.fase.eventos.length;
 
-    this.guardias = GUARDIAS.map((def, indice) => {
+    // só as guardiãs ATIVAS (possuídas e não bloqueadas) entram em campo
+    const ativas = guardiasAtivas(GUARDIAS, jogo.dados);
+    this.auraMult = auraMultiplicador(ativas);
+    const larguraBotoes = LARGURA - 40;
+    const passo = ativas.length > 0 ? larguraBotoes / ativas.length : larguraBotoes;
+    this.guardias = ativas.map((def, indice) => {
       const rad = (def.anguloGrau * Math.PI) / 180;
       const nivel = nivelDaGuardia(jogo.dados, def.id);
+      const luz = def.acalmaMaisForteS;
+      if (luz) this.proximaLuzCalma = luz;
       return {
         def,
         nivel,
@@ -154,7 +167,7 @@ export class CenaFase implements Cena {
         y: CENTRO_Y + Math.sin(rad) * RAIO_GUARDIAS,
         proximoAtaque: 0,
         habilidadeProntaEm: 0,
-        botao: { x: 130 + indice * 130, y: 712, raio: 32 },
+        botao: { x: 20 + passo * (indice + 0.5), y: 712, raio: Math.min(32, passo / 2 - 8) },
       };
     });
 
@@ -183,6 +196,7 @@ export class CenaFase implements Cena {
     this.moverInimigos(dt);
     this.ondaDaCapi();
     this.atacarComGuardias();
+    this.passivaLuzDaCalma();
     this.limparEfeitos(dt);
 
     if (this.tempo - this.ultimoAcerto > JANELA_COMBO) this.combo = 0;
@@ -354,11 +368,32 @@ export class CenaFase implements Cena {
     sfx.somCelular();
   }
 
+  // Passiva da Luz da Calma (lendária): a cada Xs acalma na hora o inimigo
+  // COMUM mais forte (maior HP restante) em campo.
+  private passivaLuzDaCalma(): void {
+    if (this.proximaLuzCalma <= 0 || this.tempo < this.proximaLuzCalma) return;
+    const luz = this.guardias.find((g) => g.def.acalmaMaisForteS);
+    if (!luz) return;
+    this.proximaLuzCalma = this.tempo + (luz.def.acalmaMaisForteS ?? 12);
+    let alvo: Inimigo | null = null;
+    for (const inimigo of this.inimigos) {
+      if (inimigo.estado !== "nadando" || inimigo.submerso || inimigo.def.ehChefe) continue;
+      if (!alvo || inimigo.hp > alvo.hp) alvo = inimigo;
+    }
+    if (!alvo) return;
+    this.efeitos.push({
+      tipo: "onda_branca", x0: luz.x, y0: luz.y - 14, x1: alvo.x, y1: alvo.y,
+      cor: "#9fe4ff", nasceu: this.tempo, duracao: 0.4,
+    });
+    sfx.somParalisia();
+    this.adormecer(alvo);
+  }
+
   // Onda dourada radial automática da Capi: dano em área.
   private ondaDaCapi(): void {
     if (this.tempo < this.proximaOndaCapi) return;
     this.proximaOndaCapi = this.tempo + CAPI_INTERVALO_ONDA_S;
-    const dano = danoDaCapi(this.jogo.dados.capiAtaqueNivel);
+    const dano = danoDaCapi(this.jogo.dados.capiAtaqueNivel) * this.auraMult;
     this.efeitos.push({
       tipo: "onda_capi",
       x0: CENTRO_X,
@@ -396,7 +431,7 @@ export class CenaFase implements Cena {
 
       guardia.proximoAtaque = this.tempo + guardia.def.cadenciaS;
       this.dispararAtaque(guardia, alvo);
-      this.causarDano(alvo, danoDaGuardia(guardia.def, guardia.nivel), "guardia");
+      this.causarDano(alvo, danoDaGuardia(guardia.def, guardia.nivel) * this.auraMult, "guardia");
     }
   }
 
@@ -515,7 +550,21 @@ export class CenaFase implements Cena {
     dados.gemas += this.fase.gemasVitoria;
     dados.faseMaxima = Math.max(dados.faseMaxima, this.fase.numero);
     const chave = String(this.fase.numero);
+
+    // fonte de gemas: primeira 3★ numa fase → +2 gemas
+    if (this.estrelas === 3 && !dados.bonusEstrela3[chave]) {
+      dados.bonusEstrela3[chave] = true;
+      dados.gemas += 2;
+      this.gemasBonus3 = 2;
+    }
     dados.estrelas[chave] = Math.max(dados.estrelas[chave] ?? 0, this.estrelas);
+
+    // cura da Sonequinha: venceu o Chefão da fase 10 na janela de resgate
+    if (this.fase.ehChefe && this.fase.numero === 10 && missaoResgateAtiva(dados)) {
+      curarSonequinha(dados);
+      this.curou = true;
+    }
+
     this.jogo.salvar();
   }
 
@@ -535,6 +584,11 @@ export class CenaFase implements Cena {
         if (!dentroDoBotao(botao, x, y)) continue;
         registrarPressao(botao.acao);
         sfx.somClique();
+        // curou a Sonequinha? qualquer botão leva primeiro à cutscene de cura
+        if (this.curou) {
+          this.jogo.irPara({ tela: "cutscene", tipo: "cura" });
+          return;
+        }
         if (botao.acao === "mapa") this.jogo.irPara({ tela: "mapa" });
         if (botao.acao === "equipe") this.jogo.irPara({ tela: "equipe" });
         if (botao.acao === "proxima") this.jogo.irPara({ tela: "fase", numero: this.fase.numero + 1 });
@@ -576,7 +630,7 @@ export class CenaFase implements Cena {
     this.ultimoAcerto = this.tempo;
 
     const bonus = 1 + 0.12 * Math.min(this.combo - 1, 10);
-    const dano = danoDoToque(this.jogo.dados.toqueNivel) * bonus;
+    const dano = danoDoToque(this.jogo.dados.toqueNivel) * bonus * this.auraMult;
     this.ondas.push({ x: alvo.x, y: alvo.y, nasceu: this.tempo, cor: "rgba(255,235,170,0.9)" });
     sfx.somToque();
     this.causarDano(alvo, dano, "toque");
@@ -971,6 +1025,11 @@ export class CenaFase implements Cena {
         ctx.fillStyle = "#8fdcff";
         ctx.font = "700 16px system-ui, sans-serif";
         ctx.fillText(`🎁 +${this.fase.gemasVitoria} 💎`, CENTRO_X + 40, painel.y + 140);
+      } else if (this.gemasBonus3 > 0) {
+        // bônus de gemas pela primeira 3★ na fase
+        ctx.fillStyle = "#8fdcff";
+        ctx.font = "700 15px system-ui, sans-serif";
+        ctx.fillText(`3★ +${this.gemasBonus3} 💎`, CENTRO_X + 44, painel.y + 140);
       }
 
       const proxima: Botao = { x: painel.x + 30, y: painel.y + 178, w: painel.w - 60, h: 52, acao: "proxima" };

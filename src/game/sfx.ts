@@ -223,3 +223,35 @@ export function somClique(): void {
   tom(v.destino, v.ctx, { freq: 520, dur: 0.05, vol: 0.06, tipo: "sine", glideFreq: 640 });
   fecharVozEm(v.ctx, v.ctx.currentTime + 0.07);
 }
+
+// Surto: acorde dissonante descendente e sinistro (O Surto leva a Sonequinha).
+export function somSurto(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  tom(v.destino, v.ctx, { freq: 220, dur: 0.9, vol: 0.14, tipo: "sawtooth", glideFreq: 70 });
+  tom(v.destino, v.ctx, { freq: 233, dur: 0.9, vol: 0.1, tipo: "square", glideFreq: 80 });
+  ruido(v.destino, v.ctx, 0.5, 0.12, 500, "lowpass");
+  fecharVozEm(v.ctx, v.ctx.currentTime + 0.9);
+}
+
+// Abertura de caixa: tique-tique de suspense subindo.
+export function somCaixaSuspense(): void {
+  const v = abrirVoz();
+  if (!v) return;
+  for (let i = 0; i < 6; i++) {
+    tom(v.destino, v.ctx, { freq: 400 + i * 90, dur: 0.06, vol: 0.05, tipo: "triangle", inicioAtraso: i * 0.22 });
+  }
+  fecharVozEm(v.ctx, v.ctx.currentTime + 1.4);
+}
+
+// Revelação por raridade: fanfarra maior/mais brilhante quanto mais raro.
+export function somRevelacao(lendaria: boolean): void {
+  const v = abrirVoz();
+  if (!v) return;
+  const notas = lendaria ? [523, 659, 784, 1047, 1319] : [440, 554, 659];
+  notas.forEach((f, i) => {
+    tom(v.destino, v.ctx, { freq: f, dur: 0.6, vol: lendaria ? 0.18 : 0.12, tipo: "triangle", inicioAtraso: i * 0.08 });
+  });
+  if (lendaria) tom(v.destino, v.ctx, { freq: 2093, dur: 0.5, vol: 0.08, tipo: "sine", inicioAtraso: 0.4 });
+  fecharVozEm(v.ctx, v.ctx.currentTime + 1.1);
+}

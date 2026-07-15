@@ -17,7 +17,11 @@ import {
 
 declare const process: { argv: string[] };
 
-const GUARDIAS = guardiasJson as unknown as GuardiaDef[];
+// Baseline de calibragem = só as 2 guardiãs iniciais (lendárias são raras,
+// não entram no poder recomendado das fases).
+const GUARDIAS = (guardiasJson as unknown as GuardiaDef[]).filter(
+  (g) => g.id === "boiadeira" || g.id === "sonequinha",
+);
 
 const RODADAS = 250;
 const PASSO = 0.1;
@@ -42,7 +46,10 @@ interface InimigoSim {
 const SAVE1: SaveData = {
   capim: 0, gemas: 0, toqueNivel: 1, capiAtaqueNivel: 1, capiCalmaNivel: 1,
   guardiaNiveis: Object.fromEntries(GUARDIAS.map((g) => [g.id, 1])),
-  faseMaxima: 0, estrelas: {}, tutoriais: {}, mute: true,
+  guardiasPossuidas: GUARDIAS.map((g) => g.id),
+  faseMaxima: 0, estrelas: {}, bonusEstrela3: {}, pityLendaria: 0,
+  evento: { sonequinha: "normal", resgateAte: 0, reabreEm: 0, cutsceneVista: false, serena: "nenhuma", serenaAte: 0, caixaLiberada: false },
+  tutoriais: {}, mute: true,
 };
 const PODER_BASE = poderDaEquipe(GUARDIAS, SAVE1);
 

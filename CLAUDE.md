@@ -10,7 +10,9 @@ Protótipo de referência: referencia/prototipo-v02.html
 - Sem localStorage p/ economia real futura; abstrair Save atrás de interface (local agora, nuvem depois).
 - Toda mudança de balanceamento passa pelo simulador (scripts/simular.ts).
 
-## Fluxo
-- Cada sessão: objetivo claro → implementar → deploy no GitHub Pages → dono testa no iPhone → commit.
+## Fluxo (desde a Sessão 6)
+- **Commit DIRETO na `main`, sem PR.** O deploy no GitHub Pages roda a cada push na main.
+- **Trava obrigatória antes de todo push:** `npm run build` (inclui typecheck) **e** `npm run simular` têm de estar VERDES. Nunca fazer push com build quebrado ou simulador falhando.
 - O dono opera SÓ pelo iPhone: nunca dar instruções que exijam terminal local; sempre entregar o link jogável no fim.
-- Nunca terminar sessão com build quebrado. Commits pequenos com mensagem em PT-BR.
+- Cada sessão: objetivo claro → implementar → trava verde → push na main → dono testa no iPhone. Commits pequenos com mensagem em PT-BR.
+- Entregável final de cada sessão: link + resumo + checklist de teste.

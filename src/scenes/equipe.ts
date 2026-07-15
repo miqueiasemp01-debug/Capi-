@@ -18,6 +18,7 @@ import {
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharEstrela } from "../game/desenhos";
+import { guardiasAtivas, sonequinhaBloqueada } from "../game/evento";
 import { somConquista, somClique } from "../game/sfx";
 import { mostrarToast, desenharToasts } from "../game/toasts";
 import {
@@ -40,7 +41,8 @@ const NOME_ESTAGIO: Record<string, ChaveTexto> = {
 
 const Y_CAPI = 74;
 const Y_TOQUE = 200;
-const Y_GUARDIAS = [298, 396];
+const Y_GUARDIA_BASE = 294;
+const PASSO_GUARDIA = 84;
 
 function formatarDano(valor: number): string {
   const arredondado = Math.round(valor * 10) / 10;
@@ -62,6 +64,7 @@ export class CenaEquipe implements Cena {
   private fundo: CanvasGradient | null = null;
   private poderExibido = -1;
   private celebracao: Celebracao | null = null;
+  private yPorGuardia: Record<string, number> = {};
 
   constructor(private readonly jogo: Jogo) {
     if (!jogo.dados.tutoriais["evoluir"] && jogo.dados.faseMaxima >= 1) {
@@ -73,7 +76,7 @@ export class CenaEquipe implements Cena {
 
   atualizar(dt: number): void {
     this.tempo += dt;
-    const poderReal = poderDaEquipe(GUARDIAS, this.jogo.dados);
+    const poderReal = poderDaEquipe(guardiasAtivas(GUARDIAS, this.jogo.dados), this.jogo.dados);
     if (this.poderExibido < 0) this.poderExibido = poderReal;
     this.poderExibido += (poderReal - this.poderExibido) * Math.min(1, dt * 5);
     if (Math.abs(poderReal - this.poderExibido) < 0.05) this.poderExibido = poderReal;
@@ -104,13 +107,12 @@ export class CenaEquipe implements Cena {
     } else if (acao.startsWith("evoluir:")) {
       const id = acao.slice(8);
       const nivel = nivelDaGuardia(dados, id);
-      const indice = GUARDIAS.findIndex((g) => g.id === id);
       const novoEstagio = estagioDaGuardia(nivel + 1) !== estagioDaGuardia(nivel);
       this.comprar(
         custoEvoluirGuardia(nivel),
         () => (dados.guardiaNiveis[id] = nivel + 1),
         t("celebra_dano_guardia"),
-        Y_GUARDIAS[indice] ?? Y_TOQUE,
+        this.yPorGuardia[id] ?? Y_TOQUE,
         novoEstagio,
       );
     }
@@ -148,23 +150,32 @@ export class CenaEquipe implements Cena {
 
     this.desenharCartaoDaCapi(ctx, 18, Y_CAPI);
     this.desenharCartaoDoToque(ctx, 18, Y_TOQUE);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[0], 18, Y_GUARDIAS[0]);
-    this.desenharCartaoDaGuardia(ctx, GUARDIAS[1], 18, Y_GUARDIAS[1]);
 
-    // poder total, com contagem animada
-    const poder = poderDaEquipe(GUARDIAS, dados);
+    // guardiãs POSSUÍDAS, em ordem; a Sonequinha aparece acinzentada se bloqueada
+    this.yPorGuardia = {};
+    const possuidas = GUARDIAS.filter((g) => dados.guardiasPossuidas.includes(g.id));
+    possuidas.forEach((g, i) => {
+      const y = Y_GUARDIA_BASE + i * PASSO_GUARDIA;
+      this.yPorGuardia[g.id] = y;
+      const bloqueada = g.id === "sonequinha" && sonequinhaBloqueada(dados);
+      this.desenharCartaoDaGuardia(ctx, g, 18, y, bloqueada);
+    });
+
+    // poder total (guardiãs ativas), com contagem animada
+    const poder = poderDaEquipe(guardiasAtivas(GUARDIAS, dados), dados);
     const poderMostrado = this.poderExibido < 0 ? poder : this.poderExibido;
     const contando = Math.abs(poder - poderMostrado) >= 0.5;
+    const yPoder = Math.max(636, Y_GUARDIA_BASE + possuidas.length * PASSO_GUARDIA + 6);
     ctx.textAlign = "center";
-    ctx.font = contando ? "800 22px system-ui, sans-serif" : "800 20px system-ui, sans-serif";
+    ctx.font = contando ? "800 20px system-ui, sans-serif" : "800 18px system-ui, sans-serif";
     ctx.fillStyle = contando ? "#ffd166" : "#ffffff";
-    ctx.fillText(`⚡ ${t("equipe_poder")}: ${Math.round(poderMostrado)}`, LARGURA / 2, 520);
+    ctx.fillText(`⚡ ${t("equipe_poder")}: ${Math.round(poderMostrado)}`, LARGURA / 2, yPoder);
 
-    const mapa: Botao = { x: 40, y: 636, w: LARGURA - 80, h: 58, acao: "mapa" };
+    const mapa: Botao = { x: 40, y: yPoder + 22, w: LARGURA - 80, h: 52, acao: "mapa" };
     desenharBotao(ctx, mapa, `◀ ${t("mapa_titulo")}`, { cor: "#3d9c63", tamanhoFonte: 20 });
     this.botoes.push(mapa);
 
-    desenharToasts(ctx, 585);
+    desenharToasts(ctx, 250);
     this.desenharCelebracao(ctx);
   }
 
@@ -307,43 +318,62 @@ export class CenaEquipe implements Cena {
     guardia: (typeof GUARDIAS)[number],
     x: number,
     y: number,
+    bloqueada = false,
   ): void {
     const dados = this.jogo.dados;
     const nivel = nivelDaGuardia(dados, guardia.id);
     const custo = custoEvoluirGuardia(nivel);
-    const podeEvoluir = dados.capim >= custo;
-    this.cartaoBase(ctx, x, y, 90);
+    const podeEvoluir = dados.capim >= custo && !bloqueada;
+    this.cartaoBase(ctx, x, y, 78);
 
+    ctx.save();
+    if (bloqueada) ctx.globalAlpha = 0.5;
     desenharRetrato(
-      ctx, imagem(`retrato-${guardia.id}`), CORES_RARIDADE[guardia.raridade],
-      guardia.cor, guardia.nome[0], x + 12, y + 15, 60,
+      ctx, bloqueada ? null : imagem(`retrato-${guardia.id}`),
+      bloqueada ? "#5a5560" : CORES_RARIDADE[guardia.raridade],
+      guardia.cor, guardia.nome[0], x + 12, y + 12, 54,
     );
-    if (podeEvoluir) desenharBadge(ctx, x + 70, y + 18, this.tempo);
-
-    const estagio = estagioDaGuardia(nivel);
-    const totalEstrelas = estagio === "plena" ? 3 : estagio === "adulta" ? 2 : 1;
-    for (let i = 0; i < totalEstrelas; i++) {
-      desenharEstrela(ctx, x + 28 + i * 14 - (totalEstrelas - 1) * 7, y + 76, 6, "#ffd166");
+    ctx.restore();
+    if (bloqueada) {
+      // marca de "surtada"
+      ctx.font = "700 22px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("😵‍💫", x + 39, y + 39);
     }
+    if (podeEvoluir) desenharBadge(ctx, x + 66, y + 14, this.tempo);
 
     ctx.textAlign = "left";
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = bloqueada ? "rgba(255,255,255,0.6)" : "#ffffff";
     ctx.font = "700 17px system-ui, sans-serif";
-    ctx.fillText(guardia.nome, x + 84, y + 24);
+    ctx.fillText(guardia.nome, x + 78, y + 24);
 
-    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    if (bloqueada) {
+      ctx.fillStyle = "#e0888f";
+      ctx.font = "600 13px system-ui, sans-serif";
+      ctx.fillText("😵‍💫 Sequestrada pelo Surto!", x + 78, y + 48, 200);
+      return;
+    }
+
+    const estagio = estagioDaGuardia(nivel);
+    const eLendaria = guardia.raridade === "lendaria";
+    ctx.fillStyle = eLendaria ? "#ffd166" : "rgba(255,255,255,0.8)";
     ctx.font = "500 13px system-ui, sans-serif";
-    ctx.fillText(`${t(NOME_ESTAGIO[estagio])} · ${t("equipe_nivel")} ${nivel}`, x + 84, y + 46, 132);
+    ctx.fillText(
+      `${eLendaria ? "★ Lendária" : t(NOME_ESTAGIO[estagio])} · ${t("equipe_nivel")} ${nivel}`,
+      x + 78,
+      y + 44,
+      140,
+    );
 
-    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.font = "700 13px system-ui, sans-serif";
     ctx.fillStyle = "#9fdf8f";
     ctx.fillText(
       `${t("equipe_dano")} ${formatarDano(danoDaGuardia(guardia, nivel))} → ${formatarDano(danoDaGuardia(guardia, nivel + 1))}`,
-      x + 84,
-      y + 68,
-      132,
+      x + 78,
+      y + 64,
+      140,
     );
 
-    this.botaoEvoluir(ctx, LARGURA - 148, y + 24, 118, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
+    this.botaoEvoluir(ctx, LARGURA - 140, y + 20, 112, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
   }
 }

@@ -34,5 +34,43 @@
       "duracaoS": 2,
       "descricao": "Sono em área: para os inimigos perto da Capi por 2s"
     }
+  },
+  {
+    "id": "grande_serena",
+    "nome": "Grande Serena",
+    "raridade": "lendaria",
+    "anguloGrau": 90,
+    "danoBase": 5,
+    "cadenciaS": 1.1,
+    "alcance": 230,
+    "ataque": "Aura: +25% de dano para todas as guardiãs",
+    "cor": "#c9a24a",
+    "auraDanoPct": 25,
+    "habilidade": {
+      "nome": "Silêncio",
+      "tipo": "sono_area",
+      "recargaS": 16,
+      "duracaoS": 3,
+      "descricao": "Congela todos os inimigos perto da Capi por 3s"
+    }
+  },
+  {
+    "id": "luz_da_calma",
+    "nome": "Luz da Calma",
+    "raridade": "lendaria",
+    "anguloGrau": 145,
+    "danoBase": 4,
+    "cadenciaS": 1.0,
+    "alcance": 220,
+    "ataque": "A cada 12s acalma o inimigo comum mais forte",
+    "cor": "#5fb8e8",
+    "acalmaMaisForteS": 12,
+    "habilidade": {
+      "nome": "Clareira",
+      "tipo": "sono_area",
+      "recargaS": 15,
+      "duracaoS": 2,
+      "descricao": "Sono em área ampla ao redor da Capi por 2s"
+    }
   }
 ]
