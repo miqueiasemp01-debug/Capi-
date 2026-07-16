@@ -11,13 +11,14 @@ import {
   progressoParaCaixaGratis,
 } from "../game/gacha";
 import { guardiaPorId } from "../game/conteudo";
-import { desenharLendariaProcedural } from "../game/desenhos";
+import { desenharFundoPantanal, desenharLendariaProcedural } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
 import { progressoDeFragmentos } from "../game/fragmentos";
 import {
   CORES_RARIDADE,
   desenharBotao,
+  desenharPainelVidro,
   desenharRetrato,
   tracarRetanguloArredondado,
   dentroDoBotao,
@@ -37,7 +38,6 @@ export class CenaCaixa implements Cena {
   private premio: PremioCaixa | null = null;
   private mostrarChances = false;
   private botoes: Botao[] = [];
-  private fundo: CanvasGradient | null = null;
 
   constructor(private readonly jogo: Jogo) {}
 
@@ -95,13 +95,17 @@ export class CenaCaixa implements Cena {
     this.botoes = [];
     const dados = this.jogo.dados;
 
-    if (!this.fundo) {
-      this.fundo = ctx.createLinearGradient(0, 0, 0, ALTURA);
-      this.fundo.addColorStop(0, "#3a2450");
-      this.fundo.addColorStop(1, "#140a20");
+    desenharFundoPantanal(ctx, this.tempo, 0.78, "37, 15, 55");
+    for (let i = 0; i < 14; i++) {
+      const x = 24 + ((i * 83) % 355);
+      const y = 104 + ((i * 137) % 430) + Math.sin(this.tempo * 0.8 + i) * 8;
+      ctx.globalAlpha = 0.1 + (i % 3) * 0.05;
+      ctx.fillStyle = i % 2 ? "#ffd166" : "#d9c9ff";
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.fillStyle = this.fundo;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
+    ctx.globalAlpha = 1;
 
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
@@ -200,6 +204,21 @@ export class CenaCaixa implements Cena {
     }
     ctx.translate(0, abrindo ? 0 : Math.sin(this.tempo * 2) * 4);
 
+    const arteCaixa = imagem("caixa-surto");
+    if (arteCaixa) {
+      const w = 232;
+      const h = w * (arteCaixa.naturalHeight / arteCaixa.naturalWidth);
+      ctx.drawImage(arteCaixa, -w / 2, -h / 2, w, h);
+      ctx.restore();
+      if (!abrindo) {
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.68)";
+        ctx.font = "600 14px system-ui, sans-serif";
+        ctx.fillText(t("caixa_premios_resumo"), cx, cy + 105);
+      }
+      return;
+    }
+
     const w = 120;
     const h = 90;
     tracarRetanguloArredondado(ctx, -w / 2, -h / 2, w, h, 12);
@@ -232,7 +251,7 @@ export class CenaCaixa implements Cena {
 
   private desenharRevelacao(ctx: CanvasRenderingContext2D): void {
     const cx = LARGURA / 2;
-    const cy = 245;
+    const cy = 205;
     const premio = this.premio!;
     const idade = this.tempo - this.abriuEm - DURACAO_SUSPENSE;
     const pop = Math.min(1, idade / 0.35) * (1 + 0.3 * Math.max(0, 1 - idade / 0.35));
@@ -254,6 +273,17 @@ export class CenaCaixa implements Cena {
     }
     ctx.restore();
 
+    const arteAberta = imagem("caixa-surto-aberta");
+    if (arteAberta) {
+      const h = 122;
+      const w = h * (arteAberta.naturalWidth / arteAberta.naturalHeight);
+      ctx.save();
+      ctx.shadowColor = lendaria ? "rgba(255,210,74,0.7)" : "rgba(205,170,255,0.45)";
+      ctx.shadowBlur = 26;
+      ctx.drawImage(arteAberta, cx - w / 2, 260, w, h);
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(pop, pop);
@@ -263,7 +293,12 @@ export class CenaCaixa implements Cena {
       ctx.textBaseline = "middle";
       ctx.fillText("🌿", 0, 0);
     } else if (guardia) {
-      if (guardia.raridade === "lendaria") {
+      const arteGuardia = imagem(guardia.id);
+      if (arteGuardia) {
+        const h = guardia.raridade === "lendaria" ? 126 : 106;
+        const w = h * (arteGuardia.naturalWidth / arteGuardia.naturalHeight);
+        ctx.drawImage(arteGuardia, -w / 2, -h / 2, w, h);
+      } else if (guardia.raridade === "lendaria") {
         desenharLendariaProcedural(ctx, guardia, 0, 6, this.tempo);
       } else {
         desenharRetrato(
@@ -327,12 +362,7 @@ export class CenaCaixa implements Cena {
     const py = 190;
     const pw = LARGURA - 64;
     const ph = 390;
-    tracarRetanguloArredondado(ctx, px, py, pw, ph, 18);
-    ctx.fillStyle = "#241634";
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.stroke();
+    desenharPainelVidro(ctx, px, py, pw, ph, 20, "#d9c9ff", 0.92);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

@@ -26,6 +26,7 @@ import * as sfx from "../game/sfx";
 import {
   CORES_RARIDADE,
   desenharBotao,
+  desenharPainelVidro,
   desenharRetrato,
   dentroDoBotao,
   registrarPressao,
@@ -73,7 +74,7 @@ interface GuardiaEmCampo {
 }
 
 // Projéteis/efeitos com identidade própria (o laser genérico morreu).
-type TipoAtaque = "chicote" | "onda_branca" | "cafe" | "onda_capi";
+type TipoAtaque = "chicote" | "onda_branca" | "cafe" | "orbe" | "onda_capi";
 
 interface Efeito {
   tipo: TipoAtaque;
@@ -472,13 +473,21 @@ export class CenaFase implements Cena {
       alvo.presoAte = Math.max(alvo.presoAte, this.tempo + 1.5);
       alvo.lentoAte = this.tempo + 1.5;
       sfx.somParalisia();
-    } else {
-      // Estagiário e futuras: café em arco
+    } else if (guardia.def.id === "estagiario") {
+      // Estagiário: uma caneca inteira viaja em arco, não uma esfera genérica.
       this.efeitos.push({
         tipo: "cafe", x0: guardia.x, y0: guardia.y - 14, x1: alvo.x, y1: alvo.y,
         cor: guardia.def.cor, nasceu: this.tempo, duracao: 0.3,
       });
       sfx.somCafe();
+    } else {
+      // Lendárias usam orbes da própria paleta; nunca compartilham o café.
+      this.efeitos.push({
+        tipo: "orbe", x0: guardia.x, y0: guardia.y - 14, x1: alvo.x, y1: alvo.y,
+        cor: guardia.def.id === "grande_serena" ? "#ffd166" : "#bfeeff",
+        nasceu: this.tempo, duracao: 0.38,
+      });
+      sfx.somParalisia();
     }
   }
 
@@ -816,21 +825,46 @@ export class CenaFase implements Cena {
         ctx.arc(e.x0, e.y0, raio, 0, Math.PI * 2);
         ctx.fill();
       } else if (e.tipo === "chicote") {
-        // linha reta que estala e some rápido
-        ctx.globalAlpha = 1 - p;
-        ctx.strokeStyle = e.cor;
-        ctx.lineWidth = 3.5 * (1 - p) + 1.5;
+        // Chicote curvo com extensão rápida, corpo de couro e estalo no alvo.
+        const extensao = Math.min(1, p * 4.2);
+        const dx = (e.x1 - e.x0) * extensao;
+        const dy = (e.y1 - e.y0) * extensao;
+        const comprimento = Math.max(1, Math.hypot(dx, dy));
+        const nx = -dy / comprimento;
+        const ny = dx / comprimento;
+        const curva = Math.sin(extensao * Math.PI) * 34 + Math.sin(this.tempo * 42) * 4 * (1 - p);
+        const cx = e.x0 + dx * 0.52 + nx * curva;
+        const cy = e.y0 + dy * 0.52 + ny * curva;
+        const ex = e.x0 + dx;
+        const ey = e.y0 + dy;
+        ctx.globalAlpha = Math.min(1, extensao * 2) * (1 - p * 0.72);
+        ctx.strokeStyle = "#5a2f18";
+        ctx.lineWidth = 5.5 * (1 - p * 0.45);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(e.x0, e.y0);
-        ctx.lineTo(e.x1, e.y1);
+        ctx.quadraticCurveTo(cx, cy, ex, ey);
+        ctx.stroke();
+        ctx.strokeStyle = "#d69b52";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(e.x0, e.y0, 8 + 2 * Math.sin(p * Math.PI), -0.4, Math.PI * 1.35);
+        ctx.strokeStyle = "rgba(255,214,140,0.72)";
         ctx.stroke();
         // estalo no alvo
-        ctx.globalAlpha = (1 - p) * 0.9;
-        ctx.fillStyle = "#fff";
-        ctx.beginPath();
-        ctx.arc(e.x1, e.y1, 5 * (1 - p) + 1, 0, Math.PI * 2);
-        ctx.fill();
+        if (extensao >= 0.98) {
+          ctx.globalAlpha = (1 - p) * 0.95;
+          ctx.strokeStyle = "#fff5cf";
+          ctx.lineWidth = 2.2;
+          for (let i = 0; i < 4; i++) {
+            const a = i * Math.PI / 2 + 0.3;
+            ctx.beginPath();
+            ctx.moveTo(e.x1 + Math.cos(a) * 3, e.y1 + Math.sin(a) * 3);
+            ctx.lineTo(e.x1 + Math.cos(a) * 12, e.y1 + Math.sin(a) * 12);
+            ctx.stroke();
+          }
+        }
       } else if (e.tipo === "onda_branca") {
         // onda branca que viaja devagar até o alvo
         const cx = e.x0 + (e.x1 - e.x0) * p;
@@ -841,16 +875,52 @@ export class CenaFase implements Cena {
         ctx.beginPath();
         ctx.arc(cx, cy, 8 + p * 8, 0, Math.PI * 2);
         ctx.stroke();
-      } else {
-        // café em arco (parábola) com respingo no fim
+      } else if (e.tipo === "cafe") {
+        // Caneca de café em arco, com alça, café visível e respingo no fim.
         const cx = e.x0 + (e.x1 - e.x0) * p;
         const arco = -Math.sin(p * Math.PI) * 40;
         const cy = e.y0 + (e.y1 - e.y0) * p + arco;
-        ctx.globalAlpha = 1 - p;
+        ctx.globalAlpha = Math.min(1, (1 - p) * 1.8);
+        ctx.translate(cx, cy);
+        ctx.rotate((e.x1 >= e.x0 ? 1 : -1) * (p * 1.5 - 0.35));
+        tracarRetanguloArredondado(ctx, -7, -5, 14, 11, 3);
+        ctx.fillStyle = "#f3d6a2";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#7b4b2b";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(0, -4, 5.5, 2.2, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "#5a2e18";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(8, 0, 4, -Math.PI / 2, Math.PI / 2);
+        ctx.strokeStyle = "#f3d6a2";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        if (p > 0.72) {
+          ctx.fillStyle = "#6b351d";
+          for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.arc(10 + i * 4, -7 + i * 3, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else {
+        const cx = e.x0 + (e.x1 - e.x0) * p;
+        const cy = e.y0 + (e.y1 - e.y0) * p - Math.sin(p * Math.PI) * 18;
+        const raio = 5 + Math.sin(p * Math.PI) * 3;
+        ctx.globalAlpha = 1 - p * 0.65;
+        ctx.shadowColor = e.cor;
+        ctx.shadowBlur = 16;
         ctx.fillStyle = e.cor;
         ctx.beginPath();
-        ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+        ctx.arc(cx, cy, raio, 0, Math.PI * 2);
         ctx.fill();
+        ctx.shadowColor = "transparent";
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
       }
       ctx.restore();
     }
@@ -940,12 +1010,16 @@ export class CenaFase implements Cena {
     const concluida = this.estado === "vitoria";
     const ehChefe = this.fase.ehChefe;
 
-    tracarRetanguloArredondado(ctx, x, y, w, 44, 12);
-    ctx.fillStyle = concluida ? "rgba(46, 125, 84, 0.92)" : ehChefe ? "rgba(90, 30, 40, 0.55)" : "rgba(0,0,0,0.38)";
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = concluida ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.14)";
-    ctx.stroke();
+    desenharPainelVidro(
+      ctx,
+      x,
+      y,
+      w,
+      44,
+      12,
+      concluida ? "#7dd3a0" : ehChefe ? "#ff8c78" : "#8fdcff",
+      0.5,
+    );
 
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
@@ -1034,15 +1108,16 @@ export class CenaFase implements Cena {
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
     const painel = { x: 35, y: 215, w: LARGURA - 70, h: 340 };
-    tracarRetanguloArredondado(ctx, painel.x, painel.y + 6, painel.w, painel.h, 20);
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fill();
-    tracarRetanguloArredondado(ctx, painel.x, painel.y, painel.w, painel.h, 20);
-    ctx.fillStyle = "#12442f";
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(255,255,255,0.2)";
-    ctx.stroke();
+    desenharPainelVidro(
+      ctx,
+      painel.x,
+      painel.y,
+      painel.w,
+      painel.h,
+      22,
+      this.estado === "vitoria" ? "#ffd166" : "#ff9aa4",
+      0.94,
+    );
 
     const vitoria = this.estado === "vitoria";
     ctx.textAlign = "center";

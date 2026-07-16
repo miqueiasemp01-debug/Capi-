@@ -20,6 +20,42 @@ export function desenharImagemCobrindo(
   ctx.drawImage(img, (LARGURA - w) / 2 + dx, (ALTURA - h) / 2 + dy, w, h);
 }
 
+// Fundo compartilhado das telas de jornada. A arte fica viva com um parallax
+// quase imperceptível e recebe uma vinheta para a UI continuar legível.
+export function desenharFundoPantanal(
+  ctx: CanvasRenderingContext2D,
+  tempo: number,
+  intensidade = 0.28,
+  cor = "10, 44, 36",
+): void {
+  const arte = imagem("mapa-pantanal");
+  if (arte) {
+    desenharImagemCobrindo(
+      ctx,
+      arte,
+      1.025,
+      Math.sin(tempo * 0.18) * 3,
+      Math.cos(tempo * 0.14) * 3,
+    );
+  } else {
+    const gradiente = ctx.createLinearGradient(0, 0, 0, ALTURA);
+    gradiente.addColorStop(0, "#247b65");
+    gradiente.addColorStop(1, "#082d24");
+    ctx.fillStyle = gradiente;
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+  }
+
+  ctx.fillStyle = `rgba(${cor}, ${intensidade})`;
+  ctx.fillRect(0, 0, LARGURA, ALTURA);
+  const vinheta = ctx.createLinearGradient(0, 0, 0, ALTURA);
+  vinheta.addColorStop(0, "rgba(4, 24, 22, 0.58)");
+  vinheta.addColorStop(0.22, "rgba(4, 24, 22, 0.03)");
+  vinheta.addColorStop(0.72, "rgba(4, 24, 22, 0.04)");
+  vinheta.addColorStop(1, "rgba(4, 24, 22, 0.72)");
+  ctx.fillStyle = vinheta;
+  ctx.fillRect(0, 0, LARGURA, ALTURA);
+}
+
 function sombraNaAgua(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -189,7 +225,7 @@ export function desenharGuardia(
     return;
   }
 
-  // lendárias ainda sem arte: desenho procedural caprichado (fallback)
+  // Fallback resiliente caso a arte não carregue no aparelho.
   if (def.raridade === "lendaria") {
     desenharLendariaProcedural(ctx, def, x, y, tempo);
     return;
@@ -227,8 +263,7 @@ export function desenharGuardia(
   ctx.restore();
 }
 
-// Lendárias procedurais (até chegar a arte): Grande Serena maior e grisalha
-// com aura dourada; Luz da Calma etérea azulada com brilho pulsante.
+// Fallback procedural das lendárias para erro de rede/asset ausente.
 export function desenharLendariaProcedural(
   ctx: CanvasRenderingContext2D,
   def: GuardiaDef,
@@ -451,6 +486,23 @@ export function desenharChefe(
       ctx.arc(x, y, r, tempo * 2 + i, tempo * 2 + i + Math.PI * 1.4);
       ctx.stroke();
     }
+    ctx.restore();
+    return;
+  }
+
+  const sprite = imagem(`chefe-${def.id}`);
+  if (sprite) {
+    const pulso = 1 + 0.045 * Math.sin(tempo * 6);
+    const altura = def.raio * 3.15;
+    const largura = altura * (sprite.naturalWidth / sprite.naturalHeight);
+    sombraNaAgua(ctx, x, y + def.raio * 0.95, Math.min(largura * 0.4, def.raio * 1.7));
+    ctx.translate(x, y);
+    if (dormindo) {
+      ctx.globalAlpha = 0.58;
+      ctx.rotate(0.12);
+    }
+    ctx.scale(pulso, 2 - pulso);
+    ctx.drawImage(sprite, -largura / 2, -altura / 2, largura, altura);
     ctx.restore();
     return;
   }

@@ -18,20 +18,37 @@ const PERSONAGENS = [
   { arquivo: "capi", id: "capi" },
   { arquivo: "boiadeira", id: "boiadeira" },
   { arquivo: "sonequinha", id: "sonequinha" },
+  { arquivo: "estagiario", id: "estagiario" },
   { arquivo: "piranha", id: "piranha_afobada" },
   { arquivo: "marimbondo", id: "marimbondo" },
-  { arquivo: "celular", id: "celular_surto" },
   { arquivo: "celular_surto", id: "celular_surto" },
-  // lendárias: sem arte ainda (desenho procedural no jogo). Quando o .jpg
-  // chegar em /assets, o pipeline já inclui automaticamente no manifesto.
   { arquivo: "grande_serena", id: "grande_serena" },
   { arquivo: "luz_da_calma", id: "luz_da_calma" },
 ];
-const CENARIOS = ["fundo-lago", "splash"];
+const SPRITES = [
+  { arquivo: "boto", id: "chefe-boto" },
+  { arquivo: "celularzao", id: "chefe-celularzao" },
+  { arquivo: "apressada", id: "chefe-apressada" },
+  { arquivo: "caixa-surto", id: "caixa-surto" },
+  { arquivo: "caixa-surto-aberta", id: "caixa-surto-aberta" },
+];
+const CENARIOS = [
+  { arquivo: "fundo-lago", id: "fundo-lago" },
+  { arquivo: "mapa-pantanal", id: "mapa-pantanal" },
+  { arquivo: "splash", id: "splash" },
+];
 
 const LIMIAR_VERDE = 26; // "verdice" mínima pra virar fundo no flood fill
 const ALTURA_SPRITE = 512;
 const TAMANHO_RETRATO = 192;
+
+function encontrarOrigem(nome) {
+  for (const extensao of ["png", "jpg", "jpeg"]) {
+    const caminho = join(PASTA_ENTRADA, `${nome}.${extensao}`);
+    if (existsSync(caminho)) return caminho;
+  }
+  return null;
+}
 
 function verdice(r, g, b) {
   return g - Math.max(r, b);
@@ -121,15 +138,19 @@ function caixaVisivel(dados, largura, altura) {
 }
 
 async function processarPersonagem(arquivo, nome) {
-  const origem = join(PASTA_ENTRADA, `${arquivo}.jpg`);
-  if (!existsSync(origem)) return null;
+  const origem = encontrarOrigem(arquivo);
+  if (!origem) return null;
+
+  const metadados = await sharp(origem).metadata();
 
   const { data, info } = await sharp(origem)
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  removerFundoVerde(data, info.width, info.height);
+  // Artes antigas chegam em JPG com fundo verde. As novas já foram recortadas
+  // em PNG, então preservar seu alfa evita uma segunda passagem destrutiva.
+  if (!metadados.hasAlpha) removerFundoVerde(data, info.width, info.height);
   const caixa = caixaVisivel(data, info.width, info.height);
   if (!caixa) {
     console.warn(`  ⚠ ${nome}: nada sobrou após o chroma key, pulando`);
@@ -164,9 +185,28 @@ async function processarPersonagem(arquivo, nome) {
   return [nome, `retrato-${nome}`];
 }
 
-async function processarCenario(nome) {
-  const origem = join(PASTA_ENTRADA, `${nome}.jpg`);
-  if (!existsSync(origem)) return null;
+async function processarSprite(arquivo, nome) {
+  const origem = encontrarOrigem(arquivo);
+  if (!origem) return null;
+  const metadados = await sharp(origem).metadata();
+  const { data, info } = await sharp(origem)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  if (!metadados.hasAlpha) removerFundoVerde(data, info.width, info.height);
+  const caixa = caixaVisivel(data, info.width, info.height);
+  if (!caixa) return null;
+  await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } })
+    .extract(caixa)
+    .resize({ height: ALTURA_SPRITE, withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toFile(join(PASTA_SAIDA, `${nome}.webp`));
+  return [nome];
+}
+
+async function processarCenario(arquivo, nome) {
+  const origem = encontrarOrigem(arquivo);
+  if (!origem) return null;
   await sharp(origem)
     .resize({ width: 780, withoutEnlargement: true })
     .webp({ quality: 74 })
@@ -177,16 +217,21 @@ async function processarCenario(nome) {
 mkdirSync(PASTA_SAIDA, { recursive: true });
 
 const disponiveis = [];
-for (const nome of CENARIOS) {
-  const gerados = await processarCenario(nome);
+for (const { arquivo, id } of CENARIOS) {
+  const gerados = await processarCenario(arquivo, id);
   if (gerados) disponiveis.push(...gerados);
-  else console.warn(`  ⚠ sem arte pra ${nome} (fallback procedural)`);
+  else console.warn(`  ⚠ sem arte pra ${id} (fallback procedural)`);
 }
 for (const { arquivo, id } of PERSONAGENS) {
   if (disponiveis.includes(id)) continue;
   const gerados = await processarPersonagem(arquivo, id);
   if (gerados) disponiveis.push(...gerados);
   else console.warn(`  ⚠ sem arte pra ${id} (${arquivo}.jpg, fallback procedural)`);
+}
+for (const { arquivo, id } of SPRITES) {
+  const gerados = await processarSprite(arquivo, id);
+  if (gerados) disponiveis.push(...gerados);
+  else console.warn(`  ⚠ sem arte pra ${id} (${arquivo}, fallback procedural)`);
 }
 
 writeFileSync(MANIFESTO, `${JSON.stringify(disponiveis.sort(), null, 2)}\n`);

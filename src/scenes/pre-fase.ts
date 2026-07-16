@@ -1,4 +1,4 @@
-import { ALTURA, LARGURA, type Cena } from "../game/motor";
+import { LARGURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import { GUARDIAS } from "../game/conteudo";
 import { guardiasAtivas } from "../game/evento";
@@ -6,10 +6,12 @@ import { nivelDaGuardia, poderDaEquipe } from "../game/economia";
 import { evolucaoDaGuardia } from "../game/fragmentos";
 import { gerarFase } from "../game/procedural";
 import { imagem } from "../game/imagens";
+import { desenharFundoPantanal } from "../game/desenhos";
 import { desenharPilulaRecurso } from "../game/icones";
 import {
   CORES_RARIDADE,
   desenharBotao,
+  desenharPainelVidro,
   desenharRetrato,
   dentroDoBotao,
   registrarPressao,
@@ -24,6 +26,7 @@ export class CenaPreFase implements Cena {
   private readonly equipe;
   private readonly poderAtual;
   private botoes: Botao[] = [];
+  private tempo = 0;
 
   constructor(
     private readonly jogo: Jogo,
@@ -34,7 +37,9 @@ export class CenaPreFase implements Cena {
     this.poderAtual = poderDaEquipe(this.equipe, jogo.dados);
   }
 
-  atualizar(): void {}
+  atualizar(dt: number): void {
+    this.tempo += dt;
+  }
 
   aoTocar(x: number, y: number): void {
     for (const botao of this.botoes) {
@@ -49,11 +54,7 @@ export class CenaPreFase implements Cena {
 
   desenhar(ctx: CanvasRenderingContext2D): void {
     this.botoes = [];
-    const gradiente = ctx.createLinearGradient(0, 0, 0, ALTURA);
-    gradiente.addColorStop(0, this.fase.bioma.cor);
-    gradiente.addColorStop(1, "#082d24");
-    ctx.fillStyle = gradiente;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
+    desenharFundoPantanal(ctx, this.tempo, 0.34);
 
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
@@ -63,25 +64,52 @@ export class CenaPreFase implements Cena {
     desenharPilulaRecurso(ctx, LARGURA - 14, 38, "capim", this.jogo.dados.capim);
     desenharPilulaRecurso(ctx, LARGURA - 110, 38, "gema", this.jogo.dados.gemas);
 
-    this.painel(ctx, 18, 76, LARGURA - 36, 158);
-    ctx.textAlign = "center";
+    this.painel(ctx, 18, 76, LARGURA - 36, 158, this.fase.ehChefe ? "#ffd166" : "#7dd3a0");
+    ctx.textAlign = "left";
     ctx.fillStyle = this.fase.ehChefe ? "#ffd166" : "#ffffff";
-    ctx.font = "800 25px system-ui, sans-serif";
-    ctx.fillText(this.fase.ehChefe ? `👑 ${this.fase.chefe?.nome ?? t("mapa_chefe")}` : this.fase.bioma.nome, LARGURA / 2, 108);
+    ctx.font = "800 23px system-ui, sans-serif";
+    ctx.fillText(this.fase.ehChefe ? `👑 ${this.fase.chefe?.nome ?? t("mapa_chefe")}` : this.fase.bioma.nome, 34, 108, 245);
+
+    const arteDestaque = imagem(this.fase.ehChefe && this.fase.chefe ? `chefe-${this.fase.chefe.id}` : "piranha_afobada");
+    if (arteDestaque) {
+      const h = this.fase.ehChefe ? 112 : 78;
+      const w = h * (arteDestaque.naturalWidth / arteDestaque.naturalHeight);
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.shadowColor = this.fase.ehChefe ? "rgba(255,205,80,0.42)" : "rgba(70,210,190,0.3)";
+      ctx.shadowBlur = 18;
+      ctx.drawImage(arteDestaque, LARGURA - 42 - w / 2, 118 - h / 2 + Math.sin(this.tempo * 2) * 2, w, h);
+      ctx.restore();
+    }
 
     const corPoder = this.poderAtual >= this.fase.poderRecomendado ? "#9fdf8f" : "#ffb08a";
-    ctx.font = "700 16px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.font = "700 13px system-ui, sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.78)";
-    ctx.fillText(`${t("equipe_recomendado")}: ${this.fase.poderRecomendado}`, LARGURA / 2, 150);
+    ctx.fillText(`${t("equipe_recomendado")}: ${this.fase.poderRecomendado}`, 36, 142);
     ctx.fillStyle = corPoder;
-    ctx.font = "800 20px system-ui, sans-serif";
-    ctx.fillText(`${t("equipe_poder")}: ${this.poderAtual}`, LARGURA / 2, 180);
+    ctx.font = "800 17px system-ui, sans-serif";
+    ctx.fillText(`⚡ ${t("equipe_poder")}: ${this.poderAtual}`, 36, 164);
+
+    const barraX = 36;
+    const barraY = 181;
+    const barraW = 218;
+    tracarRetanguloArredondado(ctx, barraX, barraY, barraW, 12, 6);
+    ctx.fillStyle = "rgba(0,0,0,0.36)";
+    ctx.fill();
+    const fracao = Math.min(1, this.poderAtual / Math.max(1, this.fase.poderRecomendado));
+    if (fracao > 0.02) {
+      tracarRetanguloArredondado(ctx, barraX, barraY, Math.max(10, barraW * fracao), 12, 6);
+      ctx.fillStyle = corPoder;
+      ctx.fill();
+    }
     ctx.font = "600 13px system-ui, sans-serif";
+    ctx.textAlign = "left";
     ctx.fillText(
       this.poderAtual >= this.fase.poderRecomendado
         ? t("equipe_dica_poder_ok")
         : t("equipe_dica_poder_baixo"),
-      LARGURA / 2,
+      36,
       211,
     );
 
@@ -91,7 +119,7 @@ export class CenaPreFase implements Cena {
     ctx.fillText(t("pre_fase_equipe"), 22, 266);
     this.desenharEquipe(ctx);
 
-    this.painel(ctx, 18, 392, LARGURA - 36, 174);
+    this.painel(ctx, 18, 392, LARGURA - 36, 174, "#ffd166");
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffd166";
     ctx.font = "800 18px system-ui, sans-serif";
@@ -165,12 +193,7 @@ export class CenaPreFase implements Cena {
     });
   }
 
-  private painel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
-    tracarRetanguloArredondado(ctx, x, y, w, h, 18);
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.stroke();
+  private painel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, destaque = "#7dd3a0"): void {
+    desenharPainelVidro(ctx, x, y, w, h, 18, destaque, 0.72);
   }
 }

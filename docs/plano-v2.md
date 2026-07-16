@@ -213,9 +213,9 @@ Primeiro evento LiveOps, todo dirigido por **timestamps no save** (relógio em
   contador ficam visíveis; guardiãs no máximo saem do pool.
 - **Fontes de gema pro ciclo se sustentar:** chefões (já existia) + **primeira 3★
   numa fase → +2 gemas**.
-- **Lendárias sem arte ainda:** desenho procedural (Serena grisalha com aura
-  dourada; Luz da Calma etérea azulada). Quando o `.jpg` chegar em `/assets`, o
-  pipeline já as inclui — nada mais a mexer.
+- **Lendárias com arte 3D:** Serena grisalha com aura dourada e Luz da Calma
+  etérea azulada já possuem sprites e retratos oficiais. O desenho procedural
+  permanece apenas como fallback resiliente caso um asset não carregue.
 
 ## 10. Conformidade TikTok (mantida e válida na v2)
 F2P ✔ · compras sem saque/valor externo ✔ · caixas = "produto surpresa" com recompensa garantida + odds públicas + pity ✔ · rewarded obrigatório ✔ · sem aposta/prêmio em dinheiro ✔ · conteúdo leve sem violência (inimigos dormem) ✔ · pacote <50 MB ✔.

@@ -28,6 +28,21 @@ export class Motor {
     this.canvas.height = ALTURA * dpr;
     container.appendChild(this.canvas);
 
+    // Gancho apenas de desenvolvimento para a revisão visual automatizada do
+    // Canvas. O Vite remove este bloco da versão publicada.
+    if (import.meta.env.DEV) {
+      (window as Window & { __capiCapturarQuadro?: () => string }).__capiCapturarQuadro =
+        () => this.canvas.toDataURL("image/png");
+      const captura = document.createElement("button");
+      captura.id = "capi-capturar-quadro";
+      captura.setAttribute("aria-label", "Capturar quadro do jogo");
+      captura.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;z-index:99;padding:0;border:0";
+      captura.addEventListener("click", () => {
+        captura.dataset.quadro = this.canvas.toDataURL("image/png");
+      });
+      container.appendChild(captura);
+    }
+
     const ctx = this.canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D indisponível");
     this.ctx = ctx;

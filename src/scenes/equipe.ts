@@ -23,7 +23,7 @@ import {
 } from "../game/fragmentos";
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
-import { desenharEstrela } from "../game/desenhos";
+import { desenharEstrela, desenharFundoPantanal } from "../game/desenhos";
 import { guardiasAtivas, sonequinhaBloqueada } from "../game/evento";
 import { somConquista, somClique } from "../game/sfx";
 import { mostrarToast, desenharToasts } from "../game/toasts";
@@ -31,10 +31,10 @@ import {
   CORES_RARIDADE,
   desenharBadge,
   desenharBotao,
+  desenharPainelVidro,
   desenharRetrato,
   dentroDoBotao,
   registrarPressao,
-  tracarRetanguloArredondado,
   type Botao,
 } from "../game/ui";
 import { t, type ChaveTexto } from "../i18n/textos";
@@ -68,7 +68,6 @@ interface Celebracao {
 export class CenaEquipe implements Cena {
   private botoes: Botao[] = [];
   private tempo = 0;
-  private fundo: CanvasGradient | null = null;
   private poderExibido = -1;
   private celebracao: Celebracao | null = null;
   private yPorGuardia: Record<string, number> = {};
@@ -138,13 +137,7 @@ export class CenaEquipe implements Cena {
     this.botoes = [];
     const dados = this.jogo.dados;
 
-    if (!this.fundo) {
-      this.fundo = ctx.createLinearGradient(0, 0, 0, ALTURA);
-      this.fundo.addColorStop(0, "#14503a");
-      this.fundo.addColorStop(1, "#0b3d2e");
-    }
-    ctx.fillStyle = this.fundo;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
+    desenharFundoPantanal(ctx, this.tempo, 0.44);
 
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
@@ -235,10 +228,8 @@ export class CenaEquipe implements Cena {
     }
   }
 
-  private cartaoBase(ctx: CanvasRenderingContext2D, x: number, y: number, altura: number): void {
-    tracarRetanguloArredondado(ctx, x, y, LARGURA - 36, altura, 16);
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.fill();
+  private cartaoBase(ctx: CanvasRenderingContext2D, x: number, y: number, altura: number, destaque = "#7dd3a0"): void {
+    desenharPainelVidro(ctx, x, y, LARGURA - 36, altura, 16, destaque, 0.68);
   }
 
   // botão de evoluir compacto, alinhável em X (Capi tem dois lado a lado)
@@ -256,7 +247,7 @@ export class CenaEquipe implements Cena {
 
   private desenharCartaoDaCapi(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     const dados = this.jogo.dados;
-    this.cartaoBase(ctx, x, y, 116);
+    this.cartaoBase(ctx, x, y, 116, "#ffd166");
 
     desenharRetrato(ctx, imagem("retrato-capi"), "#f2b53c", "#a5714b", "C", x + 12, y + 14, 56);
 
@@ -299,7 +290,7 @@ export class CenaEquipe implements Cena {
   private desenharCartaoDoToque(ctx: CanvasRenderingContext2D, x: number, y: number): void {
     const dados = this.jogo.dados;
     const custo = custoEvoluirToque(dados.toqueNivel);
-    this.cartaoBase(ctx, x, y, 88);
+    this.cartaoBase(ctx, x, y, 88, "#8fdcff");
 
     ctx.textAlign = "left";
     ctx.fillStyle = "#ffd166";
@@ -336,7 +327,7 @@ export class CenaEquipe implements Cena {
     const podeEvoluir = dados.capim >= custo && !bloqueada && possuida;
     const evolucao = evolucaoDaGuardia(dados, guardia.id);
     const fragmentos = progressoDeFragmentos(dados, guardia.id);
-    this.cartaoBase(ctx, x, y, 70);
+    this.cartaoBase(ctx, x, y, 70, CORES_RARIDADE[guardia.raridade]);
 
     ctx.save();
     if (bloqueada || !possuida) ctx.globalAlpha = 0.5;

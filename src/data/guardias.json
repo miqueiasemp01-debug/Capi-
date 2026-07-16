@@ -7,7 +7,7 @@
     "danoBase": 3,
     "cadenciaS": 0.9,
     "alcance": 210,
-    "ataque": "Laço: dano focado no inimigo mais próximo",
+    "ataque": "Chicotada: dano focado no inimigo mais próximo",
     "cor": "#d9843b",
     "habilidade": {
       "nome": "Laço Firme",

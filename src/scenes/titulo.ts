@@ -2,6 +2,7 @@ import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import { desenharCapi, desenharImagemCobrindo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
+import { desenharBotao, desenharPainelVidro } from "../game/ui";
 import { t } from "../i18n/textos";
 
 export class CenaTitulo implements Cena {
@@ -52,6 +53,8 @@ export class CenaTitulo implements Cena {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    desenharPainelVidro(ctx, 22, 104, LARGURA - 44, 104, 24, "#aef29b", 0.38);
+
     // título com sombra dura (padrão mobile)
     ctx.font = "800 36px system-ui, sans-serif";
     ctx.fillStyle = "rgba(40, 20, 5, 0.85)";
@@ -65,10 +68,23 @@ export class CenaTitulo implements Cena {
     ctx.fillStyle = "#aef29b";
     ctx.fillText(t("titulo_subtitulo"), LARGURA / 2, 180);
 
-    ctx.globalAlpha = 0.65 + 0.35 * Math.sin(this.tempo * 3);
-    ctx.font = "700 18px system-ui, sans-serif";
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(t("titulo_toque"), LARGURA / 2, ALTURA - 110);
+    for (let i = 0; i < 7; i++) {
+      const a = this.tempo * 0.4 + i * 1.9;
+      const x = LARGURA / 2 + Math.cos(a) * (118 + (i % 2) * 24);
+      const y = 330 + Math.sin(a * 1.3) * 155;
+      ctx.globalAlpha = 0.22 + 0.18 * Math.sin(this.tempo * 2 + i);
+      ctx.fillStyle = i % 2 ? "#ffd166" : "#d9fff0";
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 0.86 + 0.14 * Math.sin(this.tempo * 3);
+    desenharBotao(
+      ctx,
+      { x: 65, y: ALTURA - 145, w: LARGURA - 130, h: 58, acao: "jogar" },
+      t("titulo_toque"),
+      { cor: "#3d9c63", tamanhoFonte: 18 },
+    );
     ctx.globalAlpha = 1;
   }
 }

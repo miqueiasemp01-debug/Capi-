@@ -13,9 +13,10 @@ import {
   ofertaSerenaAtiva,
 } from "../game/evento";
 import { prepararFundacaoJornada, verificarNavegacao } from "../game/jornada";
-import { desenharBotao, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
+import { desenharBotao, desenharPainelVidro, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
 import { desenharPilulaRecurso } from "../game/icones";
-import { desenharLendariaProcedural } from "../game/desenhos";
+import { desenharFundoPantanal, desenharLendariaProcedural } from "../game/desenhos";
+import { imagem } from "../game/imagens";
 import { estaMutado, definirMute, somClique } from "../game/sfx";
 import { ehDebug, adiantarUmaHora, formatarIntervalo } from "../game/tempo";
 import { FASE_RESGATE } from "../game/evento";
@@ -138,17 +139,27 @@ export class CenaMapa implements Cena {
 
     const faseCentral = Math.max(1, Math.round(this.scrollX / ESPACO_NO) + 1);
     const bioma = biomaDaFase(faseCentral);
-    const grad = ctx.createLinearGradient(0, 0, 0, ALTURA);
-    grad.addColorStop(0, bioma.cor);
-    grad.addColorStop(1, "#0b3d2e");
-    ctx.fillStyle = grad;
+    desenharFundoPantanal(ctx, this.tempo, 0.08);
+    ctx.fillStyle = `${bioma.cor}18`;
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
     this.desenharBanner(ctx);
 
     // trilha
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(4, 40, 37, 0.42)";
+    ctx.lineWidth = 10;
+    ctx.setLineDash([]);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (let n = 1; n <= this.maxFaseMostrada; n++) {
+      const nx = (n - 1) * ESPACO_NO - this.scrollX;
+      const ny = Y_TRILHA + Math.sin(n * 0.9) * 42;
+      if (n === 1) ctx.moveTo(nx, ny);
+      else ctx.lineTo(nx, ny);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255,232,165,0.7)";
+    ctx.lineWidth = 4;
     ctx.setLineDash([2, 14]);
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -188,12 +199,19 @@ export class CenaMapa implements Cena {
 
     // rodapé: [Caixa?] Equipe + mute
     const temCaixa = dados.evento.caixaLiberada;
+    desenharPainelVidro(ctx, 10, ALTURA - 130, LARGURA - 20, 108, 22, "#7dd3a0", 0.64);
     if (temCaixa) {
       const caixa: Botao = { x: 16, y: ALTURA - 96, w: 96, h: 60, acao: "caixa" };
       const rotuloCaixa = dados.caixasGratisDisponiveis > 0
-        ? `🎁 Grátis ×${dados.caixasGratisDisponiveis}`
-        : `🎁 ${t("mapa_caixa")}`;
+        ? `   Grátis ×${dados.caixasGratisDisponiveis}`
+        : `   ${t("mapa_caixa")}`;
       desenharBotao(ctx, caixa, rotuloCaixa, { cor: "#b06fe0", tamanhoFonte: 14 });
+      const arteCaixa = imagem("caixa-surto");
+      if (arteCaixa) {
+        const h = 32;
+        const w = h * (arteCaixa.naturalWidth / arteCaixa.naturalHeight);
+        ctx.drawImage(arteCaixa, caixa.x + 5, caixa.y + 12, w, h);
+      }
       this.botoes.push(caixa);
       const equipe: Botao = { x: 122, y: ALTURA - 96, w: LARGURA - 200, h: 60, acao: "equipe" };
       desenharBotao(ctx, equipe, `⚔ ${t("mapa_equipe")}`, { cor: "#3d9c63", tamanhoFonte: 17 });
@@ -255,14 +273,10 @@ export class CenaMapa implements Cena {
       acao = "oferta";
     }
 
+    desenharPainelVidro(ctx, x, y, w, h, 12, borda.startsWith("#") ? borda : "#9ac8b5", 0.62);
     tracarRetanguloArredondado(ctx, x, y, w, h, 12);
     ctx.fillStyle = cor;
     ctx.fill();
-    ctx.setLineDash(acao || borda.startsWith("#") ? [] : [6, 6]);
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = borda;
-    ctx.stroke();
-    ctx.setLineDash([]);
 
     ctx.textBaseline = "middle";
     if (missaoResgateAtiva(dados)) {
@@ -324,10 +338,18 @@ export class CenaMapa implements Cena {
     if (atual || marcaResgate) {
       const pulso = 1 + 0.18 * Math.sin(this.tempo * 4);
       ctx.beginPath();
-      ctx.arc(x, y, r * 1.5 * pulso, 0, Math.PI * 2);
-      ctx.fillStyle = marcaResgate ? "rgba(224, 70, 61, 0.3)" : "rgba(255, 220, 130, 0.22)";
+      ctx.ellipse(x, y + 5, r * 1.65 * pulso, r * 0.72 * pulso, 0, 0, Math.PI * 2);
+      ctx.fillStyle = marcaResgate ? "rgba(224, 70, 61, 0.34)" : "rgba(255, 220, 130, 0.3)";
       ctx.fill();
     }
+
+    ctx.beginPath();
+    ctx.ellipse(x, y + 8, r * 1.18, r * 0.62, -0.08, 0, Math.PI * 2);
+    ctx.fillStyle = liberada ? (atual ? "#c7a33a" : "#2f8d61") : "rgba(22,55,48,0.78)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(213,245,197,0.42)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(x, y + 3, r, 0, Math.PI * 2);
@@ -428,12 +450,7 @@ export class CenaMapa implements Cena {
     const py = 130;
     const pw = LARGURA - 68;
     const ph = 485;
-    tracarRetanguloArredondado(ctx, px, py, pw, ph, 20);
-    ctx.fillStyle = "#2a2036";
-    ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#ffd24a";
-    ctx.stroke();
+    desenharPainelVidro(ctx, px, py, pw, ph, 24, "#ffd24a", 0.9);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -442,7 +459,34 @@ export class CenaMapa implements Cena {
     ctx.fillText(t("oferta_serena_titulo"), LARGURA / 2, py + 34);
 
     const serena = guardiaPorId("grande_serena");
-    if (serena) desenharLendariaProcedural(ctx, serena, LARGURA / 2, py + 130, this.tempo);
+    const arteSerena = imagem("grande_serena");
+    if (arteSerena) {
+      const h = 150;
+      const w = h * (arteSerena.naturalWidth / arteSerena.naturalHeight);
+      const flutuar = Math.sin(this.tempo * 2) * 3;
+      const aura = ctx.createRadialGradient(LARGURA / 2, py + 130, 12, LARGURA / 2, py + 130, 88);
+      aura.addColorStop(0, "rgba(255, 231, 145, 0.48)");
+      aura.addColorStop(0.55, "rgba(255, 196, 70, 0.2)");
+      aura.addColorStop(1, "rgba(255, 196, 70, 0)");
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(LARGURA / 2, py + 130, 88, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 8; i++) {
+        const a = this.tempo * 0.35 + i * Math.PI / 4;
+        ctx.globalAlpha = 0.48 + 0.22 * Math.sin(this.tempo * 2 + i);
+        ctx.fillStyle = "#ffe69a";
+        ctx.beginPath();
+        ctx.arc(LARGURA / 2 + Math.cos(a) * 72, py + 130 + Math.sin(a) * 58, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.shadowColor = "rgba(255, 210, 80, 0.5)";
+      ctx.shadowBlur = 24;
+      ctx.drawImage(arteSerena, LARGURA / 2 - w / 2, py + 52 + flutuar, w, h);
+      ctx.restore();
+    } else if (serena) desenharLendariaProcedural(ctx, serena, LARGURA / 2, py + 130, this.tempo);
 
     ctx.fillStyle = "#fff";
     ctx.font = "800 18px system-ui, sans-serif";

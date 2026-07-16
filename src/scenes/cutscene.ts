@@ -1,9 +1,10 @@
 import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import { marcarCutsceneVista } from "../game/evento";
-import { desenharGuardia } from "../game/desenhos";
+import { desenharFundoPantanal, desenharGuardia } from "../game/desenhos";
+import { imagem } from "../game/imagens";
 import { guardiaPorId } from "../game/conteudo";
-import { desenharBotao, tracarRetanguloArredondado, type Botao } from "../game/ui";
+import { desenharBotao, desenharPainelVidro, type Botao } from "../game/ui";
 import * as sfx from "../game/sfx";
 import { t } from "../i18n/textos";
 
@@ -57,17 +58,12 @@ export class CenaCutscene implements Cena {
   }
 
   desenhar(ctx: CanvasRenderingContext2D): void {
-    // fundo escuro dramático
-    const fundo = ctx.createLinearGradient(0, 0, 0, ALTURA);
-    if (this.tipo === "surto") {
-      fundo.addColorStop(0, "#2a1230");
-      fundo.addColorStop(1, "#0a0410");
-    } else {
-      fundo.addColorStop(0, "#16563f");
-      fundo.addColorStop(1, "#0b3d2e");
-    }
-    ctx.fillStyle = fundo;
-    ctx.fillRect(0, 0, LARGURA, ALTURA);
+    desenharFundoPantanal(
+      ctx,
+      this.tempo,
+      this.tipo === "surto" ? 0.86 : 0.54,
+      this.tipo === "surto" ? "35, 8, 48" : "8, 63, 48",
+    );
 
     if (this.tipo === "surto") this.desenharSurto(ctx);
     else this.desenharCura(ctx);
@@ -98,7 +94,7 @@ export class CenaCutscene implements Cena {
     if (this.painel === 0) {
       // Sonequinha bocejando, ainda em paz
       const sq = guardiaPorId("sonequinha");
-      if (sq) desenharGuardia(ctx, sq, cx, cy, this.tempo);
+      if (sq) this.desenharSonequinhaDestaque(ctx, sq, cx, cy, 210);
       // "Zzz" saindo
       ctx.fillStyle = "rgba(200,200,255,0.8)";
       ctx.font = "700 26px system-ui, sans-serif";
@@ -106,6 +102,13 @@ export class CenaCutscene implements Cena {
       this.legenda(ctx, t("surto_painel1"));
     } else {
       // painel 2: espiral do Surto engolindo, olhos de espiral
+      const sq = guardiaPorId("sonequinha");
+      if (sq) {
+        ctx.save();
+        ctx.globalAlpha = 0.48;
+        this.desenharSonequinhaDestaque(ctx, sq, cx, cy + 6, 170);
+        ctx.restore();
+      }
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(this.tempo * 3);
@@ -173,7 +176,7 @@ export class CenaCutscene implements Cena {
     ctx.restore();
 
     const sq = guardiaPorId("sonequinha");
-    if (sq) desenharGuardia(ctx, sq, LARGURA / 2, 300, this.tempo, "plena");
+    if (sq) this.desenharSonequinhaDestaque(ctx, sq, LARGURA / 2, 315, 224);
 
     const pop = 1 + 0.2 * Math.max(0, 1 - this.tempo / 0.4);
     ctx.save();
@@ -189,9 +192,7 @@ export class CenaCutscene implements Cena {
 
   private legenda(ctx: CanvasRenderingContext2D, texto: string): void {
     const y = 440;
-    tracarRetanguloArredondado(ctx, 30, y, LARGURA - 60, 70, 14);
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fill();
+    desenharPainelVidro(ctx, 30, y, LARGURA - 60, 70, 16, this.tipo === "surto" ? "#d78bff" : "#ffd166", 0.78);
     ctx.fillStyle = "#fff";
     ctx.font = "600 16px system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -208,5 +209,25 @@ export class CenaCutscene implements Cena {
     }
     if (atual) linhas.push(atual);
     linhas.forEach((l, i) => ctx.fillText(l, LARGURA / 2, y + 35 + (i - (linhas.length - 1) / 2) * 20));
+  }
+
+  private desenharSonequinhaDestaque(
+    ctx: CanvasRenderingContext2D,
+    definicao: NonNullable<ReturnType<typeof guardiaPorId>>,
+    x: number,
+    y: number,
+    altura: number,
+  ): void {
+    const arte = imagem("sonequinha");
+    if (!arte) {
+      desenharGuardia(ctx, definicao, x, y, this.tempo, "plena");
+      return;
+    }
+    const largura = altura * (arte.naturalWidth / arte.naturalHeight);
+    ctx.save();
+    ctx.shadowColor = this.tipo === "surto" ? "rgba(185,90,230,0.55)" : "rgba(255,220,120,0.55)";
+    ctx.shadowBlur = 28;
+    ctx.drawImage(arte, x - largura / 2, y - altura / 2 + Math.sin(this.tempo * 2) * 3, largura, altura);
+    ctx.restore();
   }
 }
