@@ -33,14 +33,15 @@ testar("save novo mantém as duas guardiãs iniciais antes da fase 3", () => {
   igual(Object.keys(dados.gemasChefeRecebidas).length, 0, "livro-razão deve iniciar vazio");
 });
 
-testar("Próxima fase após a 3 passa pelo reforço e pela cutscene do Surto", () => {
+testar("Próxima fase após a 3 passa pela cutscene, oferta e Caixa do Surto", () => {
   const dados = criarSavePadrao();
   const instante = 1_000_000;
-  const recompensa = concederRecompensasDaVitoria(dados, gerarFase(3), 2, 0, 0, instante);
+  concederRecompensasDaVitoria(dados, gerarFase(3), 2, 0, 0, instante);
 
-  afirmar(recompensa.reforcoInicialConcedido, "fase 3 deve conceder reforço");
-  afirmar(dados.guardiasPossuidas.includes("estagiario"), "Estagiário deve entrar na equipe");
+  afirmar(!dados.guardiasPossuidas.includes("estagiario"), "Estagiário não pode ser concedido");
   igual(dados.evento.sonequinha, "surtada", "Surto deve iniciar na vitória da fase 3");
+  igual(dados.evento.serena, "ativa", "oferta da Serena deve iniciar na captura");
+  afirmar(dados.evento.caixaLiberada, "Caixa deve liberar na captura");
 
   // É exatamente esta verificação compartilhada que main.ts executa quando o
   // botão “Próxima fase” pede a pré-fase 4.
@@ -50,7 +51,7 @@ testar("Próxima fase após a 3 passa pelo reforço e pela cutscene do Surto", (
   marcarCutsceneVista(dados, "surto");
   igual(verificarNavegacao(dados, instante + 2).cutscene, null, "rota deve liberar após a cutscene");
   const ativas = guardiasAtivas(GUARDIAS, dados).map((g) => g.id).sort();
-  igual(ativas.join(","), "boiadeira,estagiario", "equipe após retirada da Sonequinha");
+  igual(ativas.join(","), "boiadeira", "equipe após retirada da Sonequinha");
 });
 
 testar("save antigo preserva saldo, elenco, progresso e recompensas já pagas", () => {
@@ -78,7 +79,8 @@ testar("save antigo preserva saldo, elenco, progresso e recompensas já pagas", 
   igual(dados.pityLendaria, 37, "pity antigo");
   igual(dados.guardiaNiveis.boiadeira, 4, "nível antigo");
   afirmar(dados.guardiasPossuidas.includes("luz_da_calma"), "guardiã antiga deve permanecer");
-  afirmar(dados.guardiasPossuidas.includes("estagiario"), "save fase 3+ recebe o reforço devido");
+  afirmar(!dados.guardiasPossuidas.includes("estagiario"), "save antigo não deve inventar o Estagiário");
+  igual(dados.fragmentosGuardia.luz_da_calma, 10, "posse antiga vira desbloqueio-base");
   afirmar(dados.gemasChefeRecebidas["10"] && dados.gemasChefeRecebidas["20"], "chefes antigos devem estar pagos");
   afirmar(dados.evento.cutsceneSurtoVista, "flag legada do Surto");
   afirmar(dados.evento.cutsceneCuraVista, "flag legada da cura");
@@ -88,6 +90,39 @@ testar("save antigo preserva saldo, elenco, progresso e recompensas já pagas", 
   const replay = concederRecompensasDaVitoria(dados, gerarFase(10), 1, 0, 0, 2_000_000);
   igual(replay.gemasChefeGanhas, 0, "chefe antigo não pode pagar novamente");
   igual(dados.gemas, gemasAntes, "saldo antigo não pode ser recalculado");
+});
+
+testar("Estagiário automático da 7A vira 1 fragmento com capim devolvido uma vez", () => {
+  const primeiraMigracao = migrarSave({
+    capim: 100,
+    faseMaxima: 4,
+    guardiasPossuidas: ["boiadeira", "sonequinha", "estagiario"],
+    guardiaNiveis: { estagiario: 3 },
+    jornada: { reforcoInicialConcedido: true },
+  });
+  afirmar(!primeiraMigracao.guardiasPossuidas.includes("estagiario"), "concessão automática deve sair da posse");
+  igual(primeiraMigracao.fragmentosGuardia.estagiario, 1, "conversão em um fragmento");
+  igual(primeiraMigracao.capim, 173, "custos 25 + 48 devem ser devolvidos");
+
+  const segundaMigracao = migrarSave(primeiraMigracao);
+  igual(segundaMigracao.fragmentosGuardia.estagiario, 1, "fragmento não pode duplicar");
+  igual(segundaMigracao.capim, 173, "reembolso não pode duplicar");
+});
+
+testar("save antigo com Sonequinha capturada recebe Caixa e oferta sem reiniciar o evento", () => {
+  const dados = migrarSave({
+    faseMaxima: 6,
+    evento: {
+      sonequinha: "surtada",
+      resgateAte: 9_999_999_999_999,
+      serena: "nenhuma",
+      caixaLiberada: false,
+    },
+  });
+  igual(dados.evento.sonequinha, "surtada", "estado do resgate deve ser preservado");
+  afirmar(dados.evento.caixaLiberada, "Caixa deve liberar retroativamente");
+  igual(dados.evento.serena, "ativa", "oferta deve nascer da captura antiga");
+  afirmar(dados.evento.serenaAte > 0, "oferta precisa de prazo novo");
 });
 
 testar("prazo expira dentro da fase 10 e bloqueia a cura", () => {
@@ -149,4 +184,4 @@ testar("replay de chefe concede capim, mas nunca gemas extras", () => {
   afirmar(dados.capim > capimDepoisDaPrimeira, "replay deve continuar pagando capim");
 });
 
-console.log("\nSessão 7A: 6 cenários e todas as travas funcionais passaram.");
+console.log("\nFundação D0: 8 cenários e todas as travas funcionais passaram.");

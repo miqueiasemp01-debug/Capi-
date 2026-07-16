@@ -2,12 +2,13 @@ import type { FaseGerada, SaveData } from "./tipos";
 import { tentarCurarSonequinha } from "./evento";
 import { prepararFundacaoJornada } from "./jornada";
 import { agora } from "./tempo";
+import { registrarPartidaConcluida } from "./gacha";
 
 export interface RecompensasDaVitoria {
   capimGanho: number;
   gemasChefeGanhas: number;
   gemasBonus3: number;
-  reforcoInicialConcedido: boolean;
+  ganhouCaixaGratis: boolean;
   curouSonequinha: boolean;
 }
 
@@ -21,8 +22,6 @@ export function concederRecompensasDaVitoria(
 ): RecompensasDaVitoria {
   const capimGanho = fase.capimVitoria + capimColetado;
   const chave = String(fase.numero);
-  const reforcoAntes = dados.jornada.reforcoInicialConcedido;
-
   dados.capim += capimGanho;
 
   let gemasChefeGanhas = 0;
@@ -41,6 +40,7 @@ export function concederRecompensasDaVitoria(
 
   dados.estrelas[chave] = Math.max(dados.estrelas[chave] ?? 0, estrelas);
   dados.faseMaxima = Math.max(dados.faseMaxima, fase.numero);
+  const ganhouCaixaGratis = registrarPartidaConcluida(dados);
 
   prepararFundacaoJornada(dados, instante);
 
@@ -53,7 +53,7 @@ export function concederRecompensasDaVitoria(
     capimGanho,
     gemasChefeGanhas,
     gemasBonus3,
-    reforcoInicialConcedido: !reforcoAntes && dados.jornada.reforcoInicialConcedido,
+    ganhouCaixaGratis,
     curouSonequinha,
   };
 }

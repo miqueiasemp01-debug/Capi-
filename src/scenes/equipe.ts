@@ -15,6 +15,12 @@ import {
   nivelDaGuardia,
   poderDaEquipe,
 } from "../game/economia";
+import {
+  evolucaoDaGuardia,
+  multiplicadorDanoDaEvolucao,
+  progressoDeFragmentos,
+  totalDeFragmentos,
+} from "../game/fragmentos";
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharEstrela } from "../game/desenhos";
@@ -42,7 +48,8 @@ const NOME_ESTAGIO: Record<string, ChaveTexto> = {
 const Y_CAPI = 74;
 const Y_TOQUE = 200;
 const Y_GUARDIA_BASE = 294;
-const PASSO_GUARDIA = 68;
+const PASSO_GUARDIA = 74;
+const RECARGA_EVOLUCAO = ["", "½", "¼", "⅛"];
 
 function formatarDano(valor: number): string {
   const arredondado = Math.round(valor * 10) / 10;
@@ -153,19 +160,21 @@ export class CenaEquipe implements Cena {
 
     // guardiãs POSSUÍDAS, em ordem; a Sonequinha aparece acinzentada se bloqueada
     this.yPorGuardia = {};
-    const possuidas = GUARDIAS.filter((g) => dados.guardiasPossuidas.includes(g.id));
-    possuidas.forEach((g, i) => {
+    const visiveis = GUARDIAS.filter(
+      (g) => dados.guardiasPossuidas.includes(g.id) || totalDeFragmentos(dados, g.id) > 0,
+    );
+    visiveis.forEach((g, i) => {
       const y = Y_GUARDIA_BASE + i * PASSO_GUARDIA;
       this.yPorGuardia[g.id] = y;
       const bloqueada = g.id === "sonequinha" && sonequinhaBloqueada(dados);
-      this.desenharCartaoDaGuardia(ctx, g, 18, y, bloqueada);
+      this.desenharCartaoDaGuardia(ctx, g, 18, y, bloqueada, dados.guardiasPossuidas.includes(g.id));
     });
 
     // poder total (guardiãs ativas), com contagem animada
     const poder = poderDaEquipe(guardiasAtivas(GUARDIAS, dados), dados);
     const poderMostrado = this.poderExibido < 0 ? poder : this.poderExibido;
     const contando = Math.abs(poder - poderMostrado) >= 0.5;
-    const yPoder = Math.max(636, Y_GUARDIA_BASE + possuidas.length * PASSO_GUARDIA + 6);
+    const yPoder = Math.max(636, Y_GUARDIA_BASE + visiveis.length * PASSO_GUARDIA + 6);
     ctx.textAlign = "center";
     ctx.font = contando ? "800 20px system-ui, sans-serif" : "800 18px system-ui, sans-serif";
     ctx.fillStyle = contando ? "#ffd166" : "#ffffff";
@@ -319,33 +328,48 @@ export class CenaEquipe implements Cena {
     x: number,
     y: number,
     bloqueada = false,
+    possuida = true,
   ): void {
     const dados = this.jogo.dados;
     const nivel = nivelDaGuardia(dados, guardia.id);
     const custo = custoEvoluirGuardia(nivel);
-    const podeEvoluir = dados.capim >= custo && !bloqueada;
-    this.cartaoBase(ctx, x, y, 64);
+    const podeEvoluir = dados.capim >= custo && !bloqueada && possuida;
+    const evolucao = evolucaoDaGuardia(dados, guardia.id);
+    const fragmentos = progressoDeFragmentos(dados, guardia.id);
+    this.cartaoBase(ctx, x, y, 70);
 
     ctx.save();
-    if (bloqueada) ctx.globalAlpha = 0.5;
+    if (bloqueada || !possuida) ctx.globalAlpha = 0.5;
     desenharRetrato(
       ctx, bloqueada ? null : imagem(`retrato-${guardia.id}`),
       bloqueada ? "#5a5560" : CORES_RARIDADE[guardia.raridade],
-      guardia.cor, guardia.nome[0], x + 10, y + 10, 44,
+      guardia.cor, guardia.nome[0], x + 10, y + 13, 44,
     );
     ctx.restore();
     if (bloqueada) {
       // marca de "surtada"
       ctx.font = "700 22px system-ui, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("😵‍💫", x + 32, y + 32);
+      ctx.fillText("😵‍💫", x + 32, y + 35);
+    }
+    if (!possuida) {
+      ctx.font = "700 20px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("🔒", x + 32, y + 35);
     }
     if (podeEvoluir) desenharBadge(ctx, x + 54, y + 12, this.tempo);
 
     ctx.textAlign = "left";
     ctx.fillStyle = bloqueada ? "rgba(255,255,255,0.6)" : "#ffffff";
     ctx.font = "700 15px system-ui, sans-serif";
-    ctx.fillText(guardia.nome, x + 64, y + 19);
+    ctx.fillText(guardia.nome, x + 64, y + 16);
+
+    if (!possuida) {
+      ctx.fillStyle = "#d9c9ff";
+      ctx.font = "700 13px system-ui, sans-serif";
+      ctx.fillText(`🧩 ${fragmentos.total}/10 para desbloquear`, x + 64, y + 44, 210);
+      return;
+    }
 
     if (bloqueada) {
       ctx.fillStyle = "#e0888f";
@@ -361,19 +385,30 @@ export class CenaEquipe implements Cena {
     ctx.fillText(
       `${eLendaria ? "★ Lendária" : t(NOME_ESTAGIO[estagio])} · ${t("equipe_nivel")} ${nivel}`,
       x + 64,
-      y + 38,
+      y + 33,
       140,
     );
 
     ctx.font = "700 13px system-ui, sans-serif";
     ctx.fillStyle = "#9fdf8f";
     ctx.fillText(
-      `${t("equipe_dano")} ${formatarDano(danoDaGuardia(guardia, nivel))} → ${formatarDano(danoDaGuardia(guardia, nivel + 1))}`,
+      `${t("equipe_dano")} ${formatarDano(danoDaGuardia(guardia, nivel, evolucao))} → ${formatarDano(danoDaGuardia(guardia, nivel + 1, evolucao))}`,
       x + 64,
-      y + 55,
+      y + 49,
       140,
     );
 
-    this.botaoEvoluir(ctx, LARGURA - 140, y + 12, 112, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
+    ctx.fillStyle = fragmentos.noMaximo ? "#ffd166" : "#d9c9ff";
+    ctx.font = "650 11px system-ui, sans-serif";
+    ctx.fillText(
+      fragmentos.noMaximo
+        ? `🧩 MÁX · ×${multiplicadorDanoDaEvolucao(evolucao)} · CD${RECARGA_EVOLUCAO[evolucao]}`
+        : `🧩 ${fragmentos.atual}/${fragmentos.necessario} · ${evolucao === 0 ? "Base" : `Evo ${evolucao} ×${multiplicadorDanoDaEvolucao(evolucao)} · CD${RECARGA_EVOLUCAO[evolucao]}`}`,
+      x + 64,
+      y + 64,
+      160,
+    );
+
+    this.botaoEvoluir(ctx, LARGURA - 140, y + 15, 112, `evoluir:${guardia.id}`, custo, t("equipe_evoluir"));
   }
 }

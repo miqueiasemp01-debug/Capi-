@@ -3,6 +3,7 @@ import type { Jogo } from "../game/contexto";
 import { GUARDIAS } from "../game/conteudo";
 import { guardiasAtivas } from "../game/evento";
 import { nivelDaGuardia, poderDaEquipe } from "../game/economia";
+import { evolucaoDaGuardia } from "../game/fragmentos";
 import { gerarFase } from "../game/procedural";
 import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
@@ -155,6 +156,12 @@ export class CenaPreFase implements Cena {
       ctx.fillStyle = "rgba(255,255,255,0.72)";
       ctx.font = "600 10px system-ui, sans-serif";
       ctx.fillText(`Nv.${nivelDaGuardia(this.jogo.dados, guardia.id)}`, centro, 368);
+      const evolucao = evolucaoDaGuardia(this.jogo.dados, guardia.id);
+      if (evolucao > 0) {
+        ctx.fillStyle = "#ffd166";
+        ctx.font = "700 9px system-ui, sans-serif";
+        ctx.fillText(`Evo ${evolucao} · ×${2 ** evolucao}`, centro, 382);
+      }
     });
   }
 

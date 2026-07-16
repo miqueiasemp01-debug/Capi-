@@ -1,35 +1,10 @@
 import type { SaveData } from "./tipos";
-import {
-  cutsceneCuraPendente,
-  cutsceneSurtoPendente,
-  deveSurtar,
-  iniciarSurto,
-  sincronizarEvento,
-} from "./evento";
+import { cutsceneCuraPendente, cutsceneSurtoPendente, deveSurtar, iniciarSurto, sincronizarEvento } from "./evento";
 import { agora } from "./tempo";
 
-export const REFORCO_INICIAL_ID = "estagiario";
-
-export function concederReforcoInicialSeDevido(dados: SaveData): boolean {
-  if (dados.faseMaxima < 3) return false;
-
-  let mudou = false;
-  if (!dados.guardiasPossuidas.includes(REFORCO_INICIAL_ID)) {
-    dados.guardiasPossuidas.push(REFORCO_INICIAL_ID);
-    mudou = true;
-  }
-  if (!dados.jornada.reforcoInicialConcedido) {
-    dados.jornada.reforcoInicialConcedido = true;
-    mudou = true;
-  }
-  return mudou;
-}
-
 // Único ponto de preparação persistente usado no carregamento, mapa e rotas.
-// A ordem é importante: o reforço entra antes de o Surto bloquear a Sonequinha.
 export function prepararFundacaoJornada(dados: SaveData, instante = agora()): boolean {
   let mudou = sincronizarEvento(dados, instante);
-  if (concederReforcoInicialSeDevido(dados)) mudou = true;
   if (deveSurtar(dados) && iniciarSurto(dados, instante)) mudou = true;
   return mudou;
 }

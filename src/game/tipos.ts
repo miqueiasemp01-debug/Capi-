@@ -102,7 +102,7 @@ export interface FaseGerada {
 //  normal   → antes do evento (jogável)
 //  surtada  → sequestrada, janela de resgate de 6h ativa (resgateAte)
 //  perdida  → 6h expiraram; reabre sozinha em 24h (reabreEm)
-//  curada   → resgatada de volta (dispara a oferta da Serena)
+//  curada   → resgatada de volta (a oferta já surgiu na captura)
 export type EstadoSonequinha = "normal" | "surtada" | "perdida" | "curada";
 export type EstadoOferta = "nenhuma" | "ativa" | "comprada" | "expirada";
 
@@ -115,11 +115,12 @@ export interface EstadoEvento {
   ofertaSerenaVista: boolean;
   serena: EstadoOferta;
   serenaAte: number; // timestamp virtual do fim da oferta de 48h
-  caixaLiberada: boolean; // caixa do evento acessível (após a cura)
+  caixaLiberada: boolean; // caixa do evento acessível (após a captura)
 }
 
 export interface EstadoJornada {
-  reforcoInicialConcedido: boolean;
+  reforcoInicialConcedido: boolean; // legado da 7A, usado somente para migração
+  migracaoEstagiarioShardsConcluida: boolean;
 }
 
 export interface SaveData {
@@ -130,11 +131,14 @@ export interface SaveData {
   capiCalmaNivel: number;
   guardiaNiveis: Record<string, number>;
   guardiasPossuidas: string[]; // quais guardiãs o jogador tem
+  fragmentosGuardia: Record<string, number>; // total vitalício: 10 desbloqueia; 20/40/90 evoluem
   faseMaxima: number;
   estrelas: Record<string, number>;
   bonusEstrela3: Record<string, boolean>; // fases que já pagaram +2 gemas por 3★
   gemasChefeRecebidas: Record<string, boolean>; // chefes que já pagaram gemas na 1ª vitória
-  pityLendaria: number; // caixas abertas desde a última lendária (garante na 80ª)
+  pityLendaria: number; // caixas desde o último prêmio em destaque (garante na 100ª)
+  partidasConcluidas: number; // vitórias + derrotas concluídas; abandonar/recarregar não conta
+  caixasGratisDisponiveis: number; // acumula uma a cada 10 partidas concluídas
   evento: EstadoEvento;
   jornada: EstadoJornada;
   tutoriais: Record<string, boolean>;

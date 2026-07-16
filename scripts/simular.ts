@@ -47,14 +47,16 @@ const SAVE1: SaveData = {
   capim: 0, gemas: 0, toqueNivel: 1, capiAtaqueNivel: 1, capiCalmaNivel: 1,
   guardiaNiveis: Object.fromEntries(GUARDIAS.map((g) => [g.id, 1])),
   guardiasPossuidas: GUARDIAS.map((g) => g.id),
+  fragmentosGuardia: Object.fromEntries(GUARDIAS.map((g) => [g.id, 10])),
   faseMaxima: 0, estrelas: {}, bonusEstrela3: {}, pityLendaria: 0,
+  partidasConcluidas: 0, caixasGratisDisponiveis: 0,
   gemasChefeRecebidas: {},
   evento: {
     sonequinha: "normal", resgateAte: 0, reabreEm: 0,
     cutsceneSurtoVista: false, cutsceneCuraVista: false, ofertaSerenaVista: false,
     serena: "nenhuma", serenaAte: 0, caixaLiberada: false,
   },
-  jornada: { reforcoInicialConcedido: false },
+  jornada: { reforcoInicialConcedido: false, migracaoEstagiarioShardsConcluida: true },
   tutoriais: {}, mute: true,
 };
 const PODER_BASE = poderDaEquipe(GUARDIAS, SAVE1);

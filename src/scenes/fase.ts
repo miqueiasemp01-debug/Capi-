@@ -12,7 +12,10 @@ import {
   danoDoToque,
   estagioDaGuardia,
   nivelDaGuardia,
+  recargaDaHabilidade,
 } from "../game/economia";
+import { evolucaoDaGuardia, type NivelEvolucaoFragmentos } from "../game/fragmentos";
+import { progressoParaCaixaGratis, registrarPartidaConcluida } from "../game/gacha";
 import { guardiasAtivas, missaoResgateAtiva, sincronizarEvento } from "../game/evento";
 import { concederRecompensasDaVitoria } from "../game/recompensas";
 import { desenharCapi, desenharChefe, desenharGuardia, desenharImagemCobrindo, desenharInimigo } from "../game/desenhos";
@@ -60,6 +63,7 @@ interface Inimigo {
 interface GuardiaEmCampo {
   def: GuardiaDef;
   nivel: number;
+  evolucao: NivelEvolucaoFragmentos;
   estagio: "filhote" | "adulta" | "plena";
   x: number;
   y: number;
@@ -126,7 +130,8 @@ export class CenaFase implements Cena {
   private curou = false; // curou a Sonequinha nesta vitória (chefão da 10)
   private gemasBonus3 = 0; // +gemas de 3★ pela 1ª vez
   private gemasChefeGanhas = 0;
-  private reforcoInicialConcedido = false;
+  private ganhouCaixaGratis = false;
+  private progressoCaixaGratis = 0;
   private readonly janelaResgateAoEntrar: number;
 
   private proximoEvento = 0;
@@ -171,6 +176,7 @@ export class CenaFase implements Cena {
       return {
         def,
         nivel,
+        evolucao: evolucaoDaGuardia(jogo.dados, def.id),
         estagio: estagioDaGuardia(nivel),
         x: CENTRO_X + Math.cos(rad) * RAIO_GUARDIAS,
         y: CENTRO_Y + Math.sin(rad) * RAIO_GUARDIAS,
@@ -441,7 +447,11 @@ export class CenaFase implements Cena {
 
       guardia.proximoAtaque = this.tempo + guardia.def.cadenciaS;
       this.dispararAtaque(guardia, alvo);
-      this.causarDano(alvo, danoDaGuardia(guardia.def, guardia.nivel) * this.auraMult, "guardia");
+      this.causarDano(
+        alvo,
+        danoDaGuardia(guardia.def, guardia.nivel, guardia.evolucao) * this.auraMult,
+        "guardia",
+      );
     }
   }
 
@@ -564,7 +574,8 @@ export class CenaFase implements Cena {
     );
     this.gemasChefeGanhas = recompensa.gemasChefeGanhas;
     this.gemasBonus3 = recompensa.gemasBonus3;
-    this.reforcoInicialConcedido = recompensa.reforcoInicialConcedido;
+    this.ganhouCaixaGratis = recompensa.ganhouCaixaGratis;
+    this.progressoCaixaGratis = progressoParaCaixaGratis(this.jogo.dados);
     this.curou = recompensa.curouSonequinha;
 
     this.jogo.salvar();
@@ -575,6 +586,8 @@ export class CenaFase implements Cena {
     this.limparTransitorios();
     sfx.somDerrota();
     this.jogo.dados.capim += this.capimColetado;
+    this.ganhouCaixaGratis = registrarPartidaConcluida(this.jogo.dados);
+    this.progressoCaixaGratis = progressoParaCaixaGratis(this.jogo.dados);
     this.jogo.salvar();
   }
 
@@ -657,7 +670,7 @@ export class CenaFase implements Cena {
       sfx.somChicote();
     } else if (hab.tipo === "rajada_cafes") {
       let disparos = 0;
-      const danoPorCafe = danoDaGuardia(guardia.def, guardia.nivel) * this.auraMult * 0.7;
+      const danoPorCafe = danoDaGuardia(guardia.def, guardia.nivel, guardia.evolucao) * this.auraMult * 0.7;
       for (let i = 0; i < 5; i++) {
         let alvo: Inimigo | null = null;
         let menorDist = Infinity;
@@ -702,7 +715,7 @@ export class CenaFase implements Cena {
     }
 
     registrarPressao(`habilidade:${guardia.def.id}`);
-    guardia.habilidadeProntaEm = this.tempo + hab.recargaS;
+    guardia.habilidadeProntaEm = this.tempo + recargaDaHabilidade(guardia.def, this.jogo.dados);
   }
 
   // --------------------------------------------------------------- desenho
@@ -986,7 +999,7 @@ export class CenaFase implements Cena {
 
       if (!pronta) {
         const restante = guardia.habilidadeProntaEm - this.tempo;
-        const fracao = Math.min(1, restante / guardia.def.habilidade.recargaS);
+        const fracao = Math.min(1, restante / recargaDaHabilidade(guardia.def, this.jogo.dados));
         ctx.save();
         tracarRetanguloArredondado(ctx, x - raio, y - raio, tamanho, tamanho, tamanho * 0.22);
         ctx.clip();
@@ -1064,11 +1077,15 @@ export class CenaFase implements Cena {
         ctx.fillText(`3★ +${this.gemasBonus3} 💎`, CENTRO_X + 44, painel.y + 140);
       }
 
-      if (this.reforcoInicialConcedido) {
-        ctx.fillStyle = "#ffd166";
-        ctx.font = "800 13px system-ui, sans-serif";
-        ctx.fillText(t("reforco_estagiario_recebido"), CENTRO_X, painel.y + 164);
-      }
+      ctx.fillStyle = this.ganhouCaixaGratis ? "#ffd166" : "rgba(255,255,255,0.72)";
+      ctx.font = `${this.ganhouCaixaGratis ? "800" : "650"} 13px system-ui, sans-serif`;
+      ctx.fillText(
+        this.ganhouCaixaGratis
+          ? t("caixa_gratis_conquistada")
+          : `${t("caixa_gratis_progresso")}: ${this.progressoCaixaGratis}/10`,
+        CENTRO_X,
+        painel.y + 164,
+      );
 
       const proxima: Botao = { x: painel.x + 30, y: painel.y + 178, w: painel.w - 60, h: 52, acao: "proxima" };
       desenharBotao(ctx, proxima, t("botao_proxima"), { cor: "#3d9c63" });
@@ -1094,15 +1111,25 @@ export class CenaFase implements Cena {
         desenharIconeCapim(ctx, CENTRO_X + ctx.measureText(textoCapim).width / 2 + 4, painel.y + 123, 14);
       }
 
-      const evoluir: Botao = { x: painel.x + 30, y: painel.y + 158, w: painel.w - 60, h: 56, acao: "equipe" };
+      ctx.fillStyle = this.ganhouCaixaGratis ? "#ffd166" : "rgba(255,255,255,0.72)";
+      ctx.font = `${this.ganhouCaixaGratis ? "800" : "650"} 13px system-ui, sans-serif`;
+      ctx.fillText(
+        this.ganhouCaixaGratis
+          ? t("caixa_gratis_conquistada")
+          : `${t("caixa_gratis_progresso")}: ${this.progressoCaixaGratis}/10`,
+        CENTRO_X,
+        painel.y + 146,
+      );
+
+      const evoluir: Botao = { x: painel.x + 30, y: painel.y + 170, w: painel.w - 60, h: 56, acao: "equipe" };
       desenharBotao(ctx, evoluir, t("botao_evoluir"), { cor: "#3d9c63", tamanhoFonte: 20, icone: "capim" });
       this.botoesFim.push(evoluir);
 
-      const mapa: Botao = { x: painel.x + 30, y: painel.y + 226, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
+      const mapa: Botao = { x: painel.x + 30, y: painel.y + 238, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
       desenharBotao(ctx, mapa, t("botao_mapa"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(mapa);
 
-      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 226, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
+      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 238, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
       desenharBotao(ctx, repetir, t("botao_repetir"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(repetir);
     }

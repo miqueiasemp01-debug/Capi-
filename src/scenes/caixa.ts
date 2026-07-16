@@ -1,11 +1,29 @@
 import { LARGURA, ALTURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import type { PremioCaixa } from "../game/gacha";
-import { CUSTO_CAIXA, ODDS, PITY_MAXIMO, abrirCaixa } from "../game/gacha";
+import {
+  CUSTO_CAIXA,
+  ODDS,
+  PARTIDAS_POR_CAIXA_GRATIS,
+  PITY_MAXIMO,
+  abrirCaixa,
+  consumirCaixaGratis,
+  progressoParaCaixaGratis,
+} from "../game/gacha";
 import { guardiaPorId } from "../game/conteudo";
 import { desenharLendariaProcedural } from "../game/desenhos";
-import { desenharPilulaRecurso, desenharIconeGema } from "../game/icones";
-import { desenharBotao, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
+import { imagem } from "../game/imagens";
+import { desenharPilulaRecurso } from "../game/icones";
+import { progressoDeFragmentos } from "../game/fragmentos";
+import {
+  CORES_RARIDADE,
+  desenharBotao,
+  desenharRetrato,
+  tracarRetanguloArredondado,
+  dentroDoBotao,
+  registrarPressao,
+  type Botao,
+} from "../game/ui";
 import * as sfx from "../game/sfx";
 import { t } from "../i18n/textos";
 
@@ -27,7 +45,8 @@ export class CenaCaixa implements Cena {
     this.tempo += dt;
     if (this.estado === "abrindo" && this.tempo - this.abriuEm >= DURACAO_SUSPENSE) {
       this.estado = "revelado";
-      sfx.somRevelacao(this.premio?.tipo === "lendaria");
+      const guardia = this.premio?.tipo === "fragmentos" ? guardiaPorId(this.premio.id) : null;
+      sfx.somRevelacao(guardia?.raridade === "lendaria");
     }
   }
 
@@ -36,13 +55,17 @@ export class CenaCaixa implements Cena {
       this.mostrarChances = false;
       return;
     }
-    for (const b of this.botoes) {
-      if (!dentroDoBotao(b, x, y)) continue;
-      registrarPressao(b.acao);
+    for (const botao of this.botoes) {
+      if (!dentroDoBotao(botao, x, y)) continue;
+      registrarPressao(botao.acao);
       sfx.somClique();
-      this.executar(b.acao);
+      this.executar(botao.acao);
       return;
     }
+  }
+
+  private podeAbrir(): boolean {
+    return this.jogo.dados.caixasGratisDisponiveis > 0 || this.jogo.dados.gemas >= CUSTO_CAIXA;
   }
 
   private executar(acao: string): void {
@@ -52,8 +75,11 @@ export class CenaCaixa implements Cena {
     } else if (acao === "chances") {
       this.mostrarChances = true;
     } else if (acao === "abrir") {
-      if (dados.gemas < CUSTO_CAIXA) return;
-      dados.gemas -= CUSTO_CAIXA;
+      const usouGratis = consumirCaixaGratis(dados);
+      if (!usouGratis) {
+        if (dados.gemas < CUSTO_CAIXA) return;
+        dados.gemas -= CUSTO_CAIXA;
+      }
       this.premio = abrirCaixa(dados);
       this.jogo.salvar();
       this.estado = "abrindo";
@@ -84,10 +110,20 @@ export class CenaCaixa implements Cena {
     ctx.fillText(t("caixa_titulo"), 18, 40);
     desenharPilulaRecurso(ctx, LARGURA - 14, 38, "gema", dados.gemas);
 
+    ctx.textAlign = "center";
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillStyle = dados.caixasGratisDisponiveis > 0 ? "#ffd166" : "rgba(255,255,255,0.72)";
+    ctx.fillText(
+      dados.caixasGratisDisponiveis > 0
+        ? `🎁 ${dados.caixasGratisDisponiveis} ${dados.caixasGratisDisponiveis === 1 ? "Caixa grátis" : "Caixas grátis"}`
+        : `${t("caixa_gratis_progresso")}: ${progressoParaCaixaGratis(dados)}/${PARTIDAS_POR_CAIXA_GRATIS}`,
+      LARGURA / 2,
+      78,
+    );
+
     if (this.estado === "revelado") this.desenharRevelacao(ctx);
     else this.desenharCaixaFechada(ctx);
 
-    // pity sempre visível
     ctx.textAlign = "center";
     ctx.font = "600 14px system-ui, sans-serif";
     ctx.fillStyle = "#ffd166";
@@ -97,18 +133,29 @@ export class CenaCaixa implements Cena {
     tracarRetanguloArredondado(ctx, bx, 482, larguraBarra, 8, 4);
     ctx.fillStyle = "rgba(0,0,0,0.4)";
     ctx.fill();
-    tracarRetanguloArredondado(ctx, bx, 482, larguraBarra * (dados.pityLendaria / PITY_MAXIMO), 8, 4);
-    ctx.fillStyle = "#ffd166";
-    ctx.fill();
+    if (dados.pityLendaria > 0) {
+      const larguraProgresso = Math.max(8, larguraBarra * (dados.pityLendaria / PITY_MAXIMO));
+      tracarRetanguloArredondado(ctx, bx, 482, larguraProgresso, 8, 4);
+      ctx.fillStyle = "#ffd166";
+      ctx.fill();
+    }
 
-    // botões
     if (this.estado === "pronto") {
-      const podePagar = dados.gemas >= CUSTO_CAIXA;
+      const gratis = dados.caixasGratisDisponiveis > 0;
+      const podeAbrir = this.podeAbrir();
       const abrir: Botao = { x: 50, y: 560, w: LARGURA - 100, h: 60, acao: "abrir" };
-      desenharBotao(ctx, abrir, podePagar ? `${t("caixa_abrir")} · ${CUSTO_CAIXA}` : t("caixa_sem_gemas"), {
-        cor: podePagar ? "#b06fe0" : "#4a4a5a", desativado: !podePagar, tamanhoFonte: 20, icone: podePagar ? "gema" : undefined,
+      const rotulo = gratis
+        ? t("caixa_abrir_gratis")
+        : podeAbrir
+          ? `${t("caixa_abrir")} · ${CUSTO_CAIXA}`
+          : t("caixa_sem_gemas");
+      desenharBotao(ctx, abrir, rotulo, {
+        cor: podeAbrir ? "#b06fe0" : "#4a4a5a",
+        desativado: !podeAbrir,
+        tamanhoFonte: 20,
+        icone: !gratis && podeAbrir ? "gema" : undefined,
       });
-      if (podePagar) this.botoes.push(abrir);
+      if (podeAbrir) this.botoes.push(abrir);
 
       const chances: Botao = { x: 50, y: 628, w: (LARGURA - 110) / 2, h: 42, acao: "chances" };
       desenharBotao(ctx, chances, t("caixa_ver_chances"), { cor: "#5a4a70", tamanhoFonte: 13 });
@@ -117,15 +164,19 @@ export class CenaCaixa implements Cena {
       desenharBotao(ctx, voltar, t("botao_mapa"), { cor: "#5a4a70", tamanhoFonte: 13 });
       this.botoes.push(voltar);
     } else if (this.estado === "revelado") {
-      const podePagar = dados.gemas >= CUSTO_CAIXA;
-      const denovo: Botao = { x: 50, y: 590, w: LARGURA - 100, h: 54, acao: podePagar ? "denovo" : "mapa" };
-      desenharBotao(ctx, denovo, podePagar ? `Abrir outra · ${CUSTO_CAIXA}` : t("botao_mapa"), {
-        cor: "#b06fe0", tamanhoFonte: 18, icone: podePagar ? "gema" : undefined,
-      });
-      this.botoes.push(denovo);
-      const voltar: Botao = { x: 50, y: 652, w: LARGURA - 100, h: 38, acao: "mapa" };
-      desenharBotao(ctx, voltar, t("botao_mapa"), { cor: "#5a4a70", tamanhoFonte: 13 });
-      this.botoes.push(voltar);
+      const podeAbrir = this.podeAbrir();
+      if (podeAbrir) {
+        const denovo: Botao = { x: 50, y: 590, w: LARGURA - 100, h: 54, acao: "denovo" };
+        desenharBotao(ctx, denovo, t("caixa_abrir_outra"), { cor: "#b06fe0", tamanhoFonte: 18 });
+        this.botoes.push(denovo);
+        const voltar: Botao = { x: 50, y: 652, w: LARGURA - 100, h: 38, acao: "mapa" };
+        desenharBotao(ctx, voltar, t("botao_mapa"), { cor: "#5a4a70", tamanhoFonte: 13 });
+        this.botoes.push(voltar);
+      } else {
+        const voltar: Botao = { x: 50, y: 620, w: LARGURA - 100, h: 54, acao: "mapa" };
+        desenharBotao(ctx, voltar, t("botao_mapa"), { cor: "#b06fe0", tamanhoFonte: 18 });
+        this.botoes.push(voltar);
+      }
     }
 
     if (this.mostrarChances) this.desenharChances(ctx);
@@ -138,18 +189,17 @@ export class CenaCaixa implements Cena {
     const p = abrindo ? (this.tempo - this.abriuEm) / DURACAO_SUSPENSE : 0;
 
     ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 98, LARGURA, 344);
+    ctx.clip();
     ctx.translate(cx, cy);
-    // treme e brilha durante o suspense
     if (abrindo) {
       ctx.translate(Math.sin(this.tempo * 40) * p * 6, 0);
-      const brilho = 0.3 + 0.7 * p;
-      ctx.shadowColor = `rgba(255, 220, 120, ${brilho})`;
+      ctx.shadowColor = `rgba(255, 220, 120, ${0.3 + 0.7 * p})`;
       ctx.shadowBlur = 30 * p;
     }
-    const bob = Math.sin(this.tempo * 2) * 4;
-    ctx.translate(0, abrindo ? 0 : bob);
+    ctx.translate(0, abrindo ? 0 : Math.sin(this.tempo * 2) * 4);
 
-    // baú
     const w = 120;
     const h = 90;
     tracarRetanguloArredondado(ctx, -w / 2, -h / 2, w, h, 12);
@@ -158,12 +208,10 @@ export class CenaCaixa implements Cena {
     ctx.lineWidth = 4;
     ctx.strokeStyle = "#ffd24a";
     ctx.stroke();
-    // tampa
     tracarRetanguloArredondado(ctx, -w / 2, -h / 2 - 14, w, 26, 10);
     ctx.fillStyle = "#a5714b";
     ctx.fill();
     ctx.stroke();
-    // fechadura
     ctx.fillStyle = "#ffd24a";
     ctx.beginPath();
     ctx.arc(0, 0, 12, 0, Math.PI * 2);
@@ -176,23 +224,21 @@ export class CenaCaixa implements Cena {
 
     if (!abrindo) {
       ctx.textAlign = "center";
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillStyle = "rgba(255,255,255,0.6)";
       ctx.font = "500 14px system-ui, sans-serif";
-      ctx.fillText("Prêmios: capim, gemas ou uma Lendária!", cx, cy + 90);
+      ctx.fillText(t("caixa_premios_resumo"), cx, cy + 90);
     }
   }
 
   private desenharRevelacao(ctx: CanvasRenderingContext2D): void {
     const cx = LARGURA / 2;
-    const cy = 250;
-    const p = this.premio!;
+    const cy = 245;
+    const premio = this.premio!;
     const idade = this.tempo - this.abriuEm - DURACAO_SUSPENSE;
     const pop = Math.min(1, idade / 0.35) * (1 + 0.3 * Math.max(0, 1 - idade / 0.35));
+    const guardia = premio.tipo === "fragmentos" ? guardiaPorId(premio.id) : null;
+    const lendaria = guardia?.raridade === "lendaria";
 
-    const lendaria = p.tipo === "lendaria";
-    const cor = lendaria ? "#f2b53c" : p.tipo === "gemas" ? "#8fdcff" : "#9fdf8f";
-
-    // raios coloridos por raridade
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(this.tempo);
@@ -211,53 +257,76 @@ export class CenaCaixa implements Cena {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(pop, pop);
-    if (lendaria) {
-      const g = guardiaPorId(p.id);
-      if (g) desenharLendariaProcedural(ctx, g, 0, 6, this.tempo);
-      ctx.fillStyle = "#ffd166";
-      ctx.font = "800 24px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(t("caixa_lendaria"), 0, -60);
-    } else if (p.tipo === "gemas") {
-      desenharIconeGema(ctx, 0, 0, 60);
-    } else {
-      ctx.font = "700 52px system-ui, sans-serif";
+    if (premio.tipo === "capim") {
+      ctx.font = "700 58px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("🌿", 0, 0);
+    } else if (guardia) {
+      if (guardia.raridade === "lendaria") {
+        desenharLendariaProcedural(ctx, guardia, 0, 6, this.tempo);
+      } else {
+        desenharRetrato(
+          ctx,
+          imagem(`retrato-${guardia.id}`),
+          CORES_RARIDADE[guardia.raridade],
+          guardia.cor,
+          guardia.nome[0],
+          -45,
+          -45,
+          90,
+        );
+      }
+      ctx.font = "700 30px system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText("🧩", 56, 48);
     }
     ctx.restore();
 
-    // rótulo do prêmio
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillStyle = cor;
-    ctx.font = "800 22px system-ui, sans-serif";
-    let texto = "";
-    if (p.tipo === "capim") texto = `+${p.qtd} capim`;
-    else if (p.tipo === "gemas") texto = `+${p.qtd} gemas`;
-    else if (p.duplicada) texto = guardiaPorId(p.id)?.nome ?? "Lendária";
-    else texto = guardiaPorId(p.id)?.nome ?? "Lendária";
-    ctx.fillText(texto, cx, 360);
-
-    if (lendaria && p.duplicada) {
+    if (premio.tipo === "capim") {
       ctx.fillStyle = "#9fdf8f";
-      ctx.font = "600 15px system-ui, sans-serif";
-      ctx.fillText(t("caixa_duplicata"), cx, 388);
-    } else if (lendaria) {
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.font = "500 13px system-ui, sans-serif";
-      ctx.fillText(guardiaPorId(p.id)?.ataque ?? "", cx, 388, LARGURA - 40);
+      ctx.font = "800 24px system-ui, sans-serif";
+      ctx.fillText(`+${premio.qtd} capim`, cx, 360);
+      return;
     }
+
+    const evoluiu = premio.resultado.evolucaoDepois > premio.resultado.evolucaoAntes;
+    ctx.fillStyle = lendaria ? "#ffd166" : "#d9c9ff";
+    ctx.font = "900 18px system-ui, sans-serif";
+    const titulo = premio.resultado.desbloqueou
+      ? t("caixa_guardia_desbloqueada")
+      : evoluiu
+        ? `${t("caixa_evolucao")} ${premio.resultado.evolucaoDepois}`
+        : premio.garantidoPeloPity
+          ? t("caixa_pity_conquistado")
+          : `+${premio.qtd} ${t("caixa_fragmentos")}`;
+    ctx.fillText(titulo, cx, 348);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 20px system-ui, sans-serif";
+    ctx.fillText(`${guardia?.nome ?? premio.id} · +${premio.qtd} 🧩`, cx, 378);
+
+    const progresso = progressoDeFragmentos(this.jogo.dados, premio.id);
+    ctx.fillStyle = progresso.noMaximo ? "#ffd166" : "rgba(255,255,255,0.78)";
+    ctx.font = "650 13px system-ui, sans-serif";
+    ctx.fillText(
+      progresso.noMaximo
+        ? t("caixa_evolucao_maxima")
+        : `${t("caixa_proxima_evolucao")}: ${progresso.atual}/${progresso.necessario}`,
+      cx,
+      406,
+    );
   }
 
   private desenharChances(ctx: CanvasRenderingContext2D): void {
-    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
     ctx.fillRect(0, 0, LARGURA, ALTURA);
-    const px = 40;
-    const py = 240;
-    const pw = LARGURA - 80;
-    const ph = 260;
+    const px = 32;
+    const py = 190;
+    const pw = LARGURA - 64;
+    const ph = 390;
     tracarRetanguloArredondado(ctx, px, py, pw, ph, 18);
     ctx.fillStyle = "#241634";
     ctx.fill();
@@ -271,19 +340,24 @@ export class CenaCaixa implements Cena {
     ctx.font = "800 18px system-ui, sans-serif";
     ctx.fillText(t("caixa_odds_titulo"), LARGURA / 2, py + 34);
 
-    ctx.font = "600 15px system-ui, sans-serif";
+    ctx.font = "600 14px system-ui, sans-serif";
     ODDS.forEach((o, i) => {
-      const y = py + 76 + i * 40;
+      const y = py + 78 + i * 42;
       ctx.textAlign = "left";
-      ctx.fillStyle = i === 0 ? "#ffd166" : "#e8e8f0";
-      ctx.fillText(o.rotulo, px + 20, y);
+      ctx.fillStyle = i === ODDS.length - 1 ? "#ffd166" : "#e8e8f0";
+      ctx.fillText(o.rotulo, px + 18, y, pw - 90);
       ctx.textAlign = "right";
-      ctx.fillText(o.pct, px + pw - 20, y);
+      ctx.fillText(o.pct, px + pw - 18, y);
     });
 
     ctx.textAlign = "center";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.font = "500 13px system-ui, sans-serif";
-    ctx.fillText(`Lendária garantida na ${PITY_MAXIMO}ª caixa · toque pra fechar`, LARGURA / 2, py + ph - 26);
+    ctx.font = "500 12px system-ui, sans-serif";
+    ctx.fillText(t("caixa_odds_serena"), LARGURA / 2, py + 270, pw - 30);
+    ctx.fillText(`Pity na ${PITY_MAXIMO}ª · grátis também conta`, LARGURA / 2, py + 304);
+    ctx.fillText(t("caixa_odds_maximo"), LARGURA / 2, py + 330, pw - 30);
+    ctx.fillStyle = "#d9c9ff";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText(t("caixa_toque_fechar"), LARGURA / 2, py + ph - 22);
   }
 }

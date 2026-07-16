@@ -90,7 +90,7 @@ Novidade v2: cada **chefe de capítulo** é um momento de história (a Apressada
 | Grande Serena | Lendária | Aura: +25% dano de todas | "Silêncio": congela tudo 3s |
 | +1 guardiã de evento | Lendária | (temporada 1) | (temporada 1) |
 
-**Evolução (mantida):** Filhote → Adulta → Plena, com capim + fragmentos (duplicatas de caixa viram fragmentos — nada se perde). Cada estágio: +dano, habilidade melhorada, **Memória** de história desbloqueada.
+**Progressões separadas (decisão v2.3):** o capim continua subindo o nível normal e os estágios narrativos Filhote → Adulta → Plena. Fragmentos específicos de cada guardiã formam uma progressão maior e multiplicativa: 10 totais desbloqueiam; +10 (20 totais) = Evo 1, +20 (40 totais) = Evo 2 e +50 (90 totais) = Evo 3/máxima. Cada evolução dobra o dano e reduz pela metade a recarga da habilidade, sem piso. No máximo a guardiã sai do pool da Caixa.
 
 **Poder da equipe** = soma do valor de combate das guardiãs escaladas (dano × nível × multiplicador de raridade) + nível do Toque de Calma. É o número que o jogador compara com o recomendado da fase — a régua que dá sentido a toda compra.
 
@@ -100,8 +100,10 @@ Novidade v2: cada **chefe de capítulo** é um momento de história (a Apressada
 
 - 🌿 **Capim** (comum, ganho jogando): evoluções, melhorias do Toque, itens de evento.
 - 💎 **Gemas** (premium): caixas, tickets extras do Impossível, skins, acelerar evolução. Gotejadas de graça em missões/streak.
-- 🧩 **Fragmentos** (por raridade): vêm de duplicatas e do modo Caótico; exigidos nos estágios Adulta/Plena — criam demanda de replay e de caixas.
-- **Caixas com pity e odds públicas (mantidas):** épica garantida a cada 10, lendária a cada 40, contador visível.
+- 🧩 **Fragmentos específicos por guardiã:** vêm da Caixa em lotes de 1 ou, raramente, 10; desbloqueiam e evoluem sem substituir os níveis comprados com capim.
+- **Caixa do Surto com odds públicas:** 60% capim, 35% 1 fragmento, 4,5% 10 fragmentos e 0,5% 10 fragmentos da Luz da Calma. Pity garante os 10 fragmentos da Luz na 100ª abertura; gratuitas e pagas usam o mesmo contador.
+- **Gemas são exclusivas da Caixa:** nenhuma personagem é comprada com gemas e a Caixa nunca devolve gemas como prêmio.
+- **Caixa grátis recorrente:** uma a cada 10 partidas concluídas, com vitória ou derrota e mesmo em replay. Abandonar/recarregar não conta; recompensas acumulam.
 - Calibragem-alvo: jogador grátis engajado evolui 1 guardiã a cada ~2 dias; a "distância de 2 dias de algo desejado" é a régua de todos os sinks.
 
 ## 6. Monetização e preços (mantidos da v1)
@@ -116,7 +118,7 @@ Anúncios: rewarded no momento de desespero (derrota → "assista e ganhe 2x cap
 
 | Dia | Momento-chave |
 |---|---|
-| D0 | História (3 painéis) → fases 1–3 → **resgata 2ª guardiã grátis na fase 3** (sente o salto de poder) → 1ª caixa grátis → para na parede leve da fase 5 → aprende a evoluir |
+| D0 | História → fases 1–3 → Surto captura a Sonequinha → Caixa e oferta da Grande Serena aparecem → jogador fortalece a Boiadeira/rejoga enquanto busca fragmentos → 1ª Caixa grátis na 10ª partida concluída |
 | D1 | Missões diárias; termina cap. 1 no Tranquilo; **Agitado** libera (replay) |
 | D2 | **Modo Impossível + ranking estadual** revelados; oferta Iniciante R$ 5,99 (confiança antes de oferta) |
 | D3 | Muro da fase 8–10 do Agitado; pity visível (6/10); rewarded em destaque |
@@ -198,13 +200,17 @@ Primeiro evento LiveOps, todo dirigido por **timestamps no save** (relógio em
   No mapa, a missão **"🆘 Salve a Sonequinha — vença o Chefão da fase 10"** com
   **cronômetro real de 6h**. Vencer na janela → **cura** com celebração grande.
   Se expirar: **sem perda permanente** — reabre sozinha 24h depois.
-- **Oferta relâmpago (pós-cura):** a **Grande Serena** (lendária, aura passiva
-  +25% de dano pra todas) por **60 gemas de 200 (−70%)**, contador de **48h**.
-- **Caixa do Surto (gacha honesto):** 25 gemas. **Decisão registrada — Luz da
-  Calma (2ª lendária): 0,5% de chance, com pity que GARANTE na 80ª caixa**,
-  contador visível. Botão "Ver chances" com odds exatas (transparência é lei).
-  Duplicata de lendária → 500 de capim. Abertura com 1,5s de suspense e revelação
-  colorida por raridade.
+- **Oferta relâmpago (imediatamente após a captura):** a **Grande Serena**
+  (lendária, aura passiva +25% de dano pra todas) aparece por **R$ 5,99**, com
+  contador de 48h. Nenhuma personagem é vendida por gemas. No GitHub Pages a
+  oferta é demonstrativa e não concede compra local; a transação real exige o
+  IAP autenticado do TikTok. Depois de comprada, fragmentos da Serena entram no
+  pool com peso 2× em relação a cada outra guardiã elegível.
+- **Caixa do Surto (gacha por fragmentos):** libera junto com a captura, custa
+  25 gemas ou usa uma abertura grátis acumulada. Conteúdo: capim ou fragmentos;
+  nunca gemas nem personagem direta. 10 fragmentos desbloqueiam uma guardiã.
+  Luz da Calma tem 0,5% para 10 fragmentos e **pity na 100ª abertura**. Odds e
+  contador ficam visíveis; guardiãs no máximo saem do pool.
 - **Fontes de gema pro ciclo se sustentar:** chefões (já existia) + **primeira 3★
   numa fase → +2 gemas**.
 - **Lendárias sem arte ainda:** desenho procedural (Serena grisalha com aura
@@ -290,7 +296,14 @@ Protótipo de referência: referencia/prototipo-v02.html
 
 ## Changelog
 
-### v2.2 — O Surto ataca: evento + caixas com garantia
+### v2.3 — Fragmentos, Caixa recorrente e oferta direta
+- Estagiário deixa de ser recompensa automática; concessões da 7A migram para 1 fragmento com devolução idempotente do capim gasto.
+- Caixa libera na captura da Sonequinha, custa 25 gemas e entrega 60% capim / 35% 1 fragmento / 4,5% 10 fragmentos / 0,5% 10 fragmentos da Luz.
+- Pity passa a 100; toda 10ª partida concluída concede uma Caixa grátis acumulável, inclusive em replay.
+- 10 fragmentos desbloqueiam; excedentes +10/+20/+50 geram Evo 1/2/3 com dano ×2/×4/×8 e recarga 1/2, 1/4 e 1/8.
+- Grande Serena aparece por R$ 5,99 logo após a captura; depois da compra seus fragmentos entram com peso 2×. Gemas ficam exclusivas para Caixas.
+
+### v2.2 — O Surto ataca: evento + caixas com garantia *(histórico; economia substituída na v2.3)*
 - **Evento "Salve a Sonequinha"**: cutscene do surto, guardiã bloqueada (Poder cai), missão com cronômetro real de 6h, cura com celebração, reabertura automática em 24h se expirar (sem perda permanente).
 - **Oferta relâmpago 48h** da Grande Serena (lendária, aura +25%) por 60 gemas (−70%).
 - **Caixa do Surto**: gacha honesto — Luz da Calma (lendária) 0,5% + **pity garantido na 80ª**, "Ver chances" com odds exatas, duplicata → 500 capim, animação de 1,5s.

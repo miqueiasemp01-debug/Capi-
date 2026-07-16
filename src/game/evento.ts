@@ -50,6 +50,12 @@ export function iniciarSurto(dados: SaveData, instante = agora()): boolean {
   dados.evento.resgateAte = instante + JANELA_RESGATE_MS;
   dados.evento.reabreEm = 0;
   dados.evento.cutsceneSurtoVista = false;
+  dados.evento.caixaLiberada = true;
+  if (dados.evento.serena === "nenhuma") {
+    dados.evento.serena = "ativa";
+    dados.evento.serenaAte = instante + OFERTA_SERENA_MS;
+    dados.evento.ofertaSerenaVista = false;
+  }
   return true;
 }
 
@@ -82,11 +88,6 @@ export function tentarCurarSonequinha(
   dados.evento.reabreEm = 0;
   dados.evento.cutsceneCuraVista = false;
   dados.evento.caixaLiberada = true;
-  if (dados.evento.serena === "nenhuma") {
-    dados.evento.serena = "ativa";
-    dados.evento.serenaAte = instante + OFERTA_SERENA_MS;
-    dados.evento.ofertaSerenaVista = false;
-  }
   return true;
 }
 

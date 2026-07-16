@@ -1,4 +1,5 @@
 import type { GuardiaDef, Raridade, SaveData } from "./tipos";
+import { divisorRecargaDaEvolucao, evolucaoDaGuardia } from "./fragmentos";
 
 const MULTIPLICADOR_RARIDADE: Record<Raridade, number> = {
   comum: 1,
@@ -29,8 +30,12 @@ export function estagioDaGuardia(nivel: number): "filhote" | "adulta" | "plena" 
   return "filhote";
 }
 
-export function danoDaGuardia(guardia: GuardiaDef, nivel: number): number {
-  return guardia.danoBase * GANHO_GUARDIA ** (nivel - 1);
+export function danoDaGuardia(guardia: GuardiaDef, nivel: number, evolucao = 0): number {
+  return guardia.danoBase * GANHO_GUARDIA ** (nivel - 1) * 2 ** evolucao;
+}
+
+export function recargaDaHabilidade(guardia: GuardiaDef, dados: SaveData): number {
+  return guardia.habilidade.recargaS / divisorRecargaDaEvolucao(evolucaoDaGuardia(dados, guardia.id));
 }
 
 export function danoDoToque(nivel: number): number {
@@ -63,9 +68,9 @@ export function custoEvoluirCapiCalma(nivelAtual: number): number {
   return Math.round(22 * 1.85 ** (nivelAtual - 1));
 }
 
-export function valorDeCombate(guardia: GuardiaDef, nivel: number): number {
+export function valorDeCombate(guardia: GuardiaDef, nivel: number, evolucao = 0): number {
   // DPS efetivo ponderado pela raridade
-  return (danoDaGuardia(guardia, nivel) / guardia.cadenciaS) * MULTIPLICADOR_RARIDADE[guardia.raridade];
+  return (danoDaGuardia(guardia, nivel, evolucao) / guardia.cadenciaS) * MULTIPLICADOR_RARIDADE[guardia.raridade];
 }
 
 // Aura da Grande Serena: +X% de dano pra TODAS as fontes (guardiãs, Capi, Toque).
@@ -79,7 +84,11 @@ export function auraMultiplicador(guardias: GuardiaDef[]): number {
 // posse/bloqueio) + Toque + Capi, com a aura aplicada por cima.
 export function poderDaEquipe(guardias: GuardiaDef[], dados: SaveData): number {
   const somaGuardias = guardias.reduce(
-    (soma, g) => soma + valorDeCombate(g, nivelDaGuardia(dados, g.id)),
+    (soma, g) => soma + valorDeCombate(
+      g,
+      nivelDaGuardia(dados, g.id),
+      evolucaoDaGuardia(dados, g.id),
+    ),
     0,
   );
   const dpsCapi = danoDaCapi(dados.capiAtaqueNivel) / CAPI_INTERVALO_ONDA_S * 1.6;

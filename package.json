@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "simular": "tsx scripts/simular.ts",
     "testar:7a": "tsx scripts/testar-sessao-7a.ts",
+    "testar:7b": "tsx scripts/testar-sessao-7b.ts",
     "assets": "node scripts/gerar-assets.mjs"
   },
   "devDependencies": {

@@ -16,7 +16,7 @@ import { prepararFundacaoJornada, verificarNavegacao } from "../game/jornada";
 import { desenharBotao, tracarRetanguloArredondado, dentroDoBotao, registrarPressao, type Botao } from "../game/ui";
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharLendariaProcedural } from "../game/desenhos";
-import { estaMutado, definirMute, somClique, somConquista } from "../game/sfx";
+import { estaMutado, definirMute, somClique } from "../game/sfx";
 import { ehDebug, adiantarUmaHora, formatarIntervalo } from "../game/tempo";
 import { FASE_RESGATE } from "../game/evento";
 import { t } from "../i18n/textos";
@@ -24,8 +24,7 @@ import { t } from "../i18n/textos";
 const ESPACO_NO = 96;
 const Y_TRILHA = 300;
 const FASES_VISIVEIS_ALEM = 6;
-const PRECO_SERENA = 60;
-const PRECO_SERENA_CHEIO = 200;
+const PRECO_SERENA = "R$ 5,99";
 
 export class CenaMapa implements Cena {
   private tempo = 0;
@@ -37,7 +36,7 @@ export class CenaMapa implements Cena {
   private maxFaseMostrada: number;
   private botoes: Botao[] = [];
   private mostrarOferta = false;
-  private celebracaoSerena = -9;
+  private avisoCompraAte = -9;
 
   constructor(private readonly jogo: Jogo) {
     if (prepararFundacaoJornada(jogo.dados)) jogo.salvar();
@@ -191,7 +190,10 @@ export class CenaMapa implements Cena {
     const temCaixa = dados.evento.caixaLiberada;
     if (temCaixa) {
       const caixa: Botao = { x: 16, y: ALTURA - 96, w: 96, h: 60, acao: "caixa" };
-      desenharBotao(ctx, caixa, `🎁 ${t("mapa_caixa")}`, { cor: "#b06fe0", tamanhoFonte: 15 });
+      const rotuloCaixa = dados.caixasGratisDisponiveis > 0
+        ? `🎁 Grátis ×${dados.caixasGratisDisponiveis}`
+        : `🎁 ${t("mapa_caixa")}`;
+      desenharBotao(ctx, caixa, rotuloCaixa, { cor: "#b06fe0", tamanhoFonte: 14 });
       this.botoes.push(caixa);
       const equipe: Botao = { x: 122, y: ALTURA - 96, w: LARGURA - 200, h: 60, acao: "equipe" };
       desenharBotao(ctx, equipe, `⚔ ${t("mapa_equipe")}`, { cor: "#3d9c63", tamanhoFonte: 17 });
@@ -225,9 +227,6 @@ export class CenaMapa implements Cena {
       ctx.fillText(t("debug_hora"), b.x + b.w / 2, b.y + b.h / 2);
       this.botoes.push(b);
     }
-
-    // celebração ao comprar a Serena
-    if (this.tempo - this.celebracaoSerena < 1.6) this.desenharCelebracaoSerena(ctx);
 
     if (this.mostrarOferta) this.desenharOferta(ctx);
   }
@@ -404,20 +403,14 @@ export class CenaMapa implements Cena {
   // ------------------------------------------------------- oferta da Serena
 
   private tocarNaOferta(x: number, y: number): void {
-    const comprar: Botao = { x: 50, y: 470, w: LARGURA - 100, h: 56, acao: "comprar" };
-    const fechar: Botao = { x: 50, y: 534, w: LARGURA - 100, h: 40, acao: "fechar" };
+    const comprar: Botao = { x: 50, y: 480, w: LARGURA - 100, h: 56, acao: "comprar" };
+    const fechar: Botao = { x: 50, y: 544, w: LARGURA - 100, h: 40, acao: "fechar" };
     if (dentroDoBotao(comprar, x, y)) {
-      const dados = this.jogo.dados;
-      if (dados.gemas >= PRECO_SERENA) {
-        dados.gemas -= PRECO_SERENA;
-        dados.guardiasPossuidas.push("grande_serena");
-        dados.evento.serena = "comprada";
-        marcarOfertaSerenaVista(dados);
-        this.jogo.salvar();
-        somConquista();
-        this.celebracaoSerena = this.tempo;
-      }
-      this.mostrarOferta = false;
+      somClique();
+      // O GitHub Pages não possui identidade, pedido server-side nem SDK IAP.
+      // Nunca conceder uma compra real por um clique local: o botão apresenta
+      // a oferta e deixa explícito onde a transação segura será habilitada.
+      this.avisoCompraAte = this.tempo + 3;
     } else if (dentroDoBotao(fechar, x, y)) {
       somClique();
       marcarOfertaSerenaVista(this.jogo.dados);
@@ -432,9 +425,9 @@ export class CenaMapa implements Cena {
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
     const px = 34;
-    const py = 150;
+    const py = 130;
     const pw = LARGURA - 68;
-    const ph = 440;
+    const ph = 485;
     tracarRetanguloArredondado(ctx, px, py, pw, ph, 20);
     ctx.fillStyle = "#2a2036";
     ctx.fill();
@@ -458,59 +451,25 @@ export class CenaMapa implements Cena {
     ctx.font = "500 14px system-ui, sans-serif";
     ctx.fillText(t("oferta_serena_desc"), LARGURA / 2, py + 236, pw - 30);
 
-    // preço riscado
-    ctx.font = "600 16px system-ui, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.5)";
-    const cheio = `${PRECO_SERENA_CHEIO}💎`;
-    const larguraCheio = ctx.measureText(cheio).width;
-    ctx.fillText(cheio, LARGURA / 2 - 40, py + 274);
-    ctx.strokeStyle = "#e0463d";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(LARGURA / 2 - 40 - larguraCheio / 2, py + 274);
-    ctx.lineTo(LARGURA / 2 - 40 + larguraCheio / 2, py + 274);
-    ctx.stroke();
+    // Compra direta em dinheiro; gemas continuam exclusivas para a Caixa.
     ctx.fillStyle = "#ffd166";
-    ctx.font = "800 22px system-ui, sans-serif";
-    ctx.fillText(`${PRECO_SERENA}💎 (−70%)`, LARGURA / 2 + 40, py + 274);
+    ctx.font = "900 28px system-ui, sans-serif";
+    ctx.fillText(PRECO_SERENA, LARGURA / 2, py + 274);
 
     // contador
     ctx.fillStyle = "#fff";
     ctx.font = "700 14px system-ui, sans-serif";
-    ctx.fillText(`⏳ ${t("oferta_expira")} ${formatarIntervalo(msRestantesOferta(dados))}`, LARGURA / 2, py + 300);
+    ctx.fillText(`⏳ ${t("oferta_expira")} ${formatarIntervalo(msRestantesOferta(dados))}`, LARGURA / 2, py + 302);
 
-    const podePagar = dados.gemas >= PRECO_SERENA;
-    const comprar: Botao = { x: 50, y: 470, w: LARGURA - 100, h: 56, acao: "comprar" };
-    desenharBotao(ctx, comprar, `${t("oferta_comprar")} ${PRECO_SERENA}💎`, {
-      cor: podePagar ? "#3d9c63" : "#4a4a5a", desativado: !podePagar, tamanhoFonte: 18,
+    ctx.fillStyle = this.tempo < this.avisoCompraAte ? "#ffd166" : "rgba(255,255,255,0.68)";
+    ctx.font = "650 12px system-ui, sans-serif";
+    ctx.fillText(t("oferta_tiktok_indisponivel"), LARGURA / 2, py + 330, pw - 28);
+
+    const comprar: Botao = { x: 50, y: 480, w: LARGURA - 100, h: 56, acao: "comprar" };
+    desenharBotao(ctx, comprar, `${t("oferta_comprar")} ${PRECO_SERENA}`, {
+      cor: "#3d9c63", tamanhoFonte: 18,
     });
-    const fechar: Botao = { x: 50, y: 534, w: LARGURA - 100, h: 40, acao: "fechar" };
+    const fechar: Botao = { x: 50, y: 544, w: LARGURA - 100, h: 40, acao: "fechar" };
     desenharBotao(ctx, fechar, t("botao_voltar"), { cor: "#5a4a70", tamanhoFonte: 14 });
-  }
-
-  private desenharCelebracaoSerena(ctx: CanvasRenderingContext2D): void {
-    const idade = this.tempo - this.celebracaoSerena;
-    const flash = Math.max(0, 1 - idade / 0.3);
-    if (flash > 0) {
-      ctx.fillStyle = `rgba(255, 252, 235, ${0.6 * flash})`;
-      ctx.fillRect(0, 0, LARGURA, ALTURA);
-    }
-    const entrada = Math.min(1, idade / 0.18);
-    const escala = entrada * (1 + 0.35 * Math.sin(entrada * Math.PI));
-    const saida = Math.max(0, Math.min(1, (1.6 - idade) / 0.35));
-    ctx.save();
-    ctx.globalAlpha = saida;
-    ctx.translate(LARGURA / 2, 300);
-    ctx.scale(escala, escala);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = "800 30px system-ui, sans-serif";
-    ctx.lineWidth = 8;
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "rgba(60,30,0,0.9)";
-    ctx.strokeText(t("celebra_serena"), 0, 0);
-    ctx.fillStyle = "#ffd166";
-    ctx.fillText(t("celebra_serena"), 0, 0);
-    ctx.restore();
   }
 }
