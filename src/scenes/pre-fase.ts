@@ -2,7 +2,7 @@ import { LARGURA, type Cena } from "../game/motor";
 import type { Jogo } from "../game/contexto";
 import { GUARDIAS } from "../game/conteudo";
 import { guardiasAtivas } from "../game/evento";
-import { nivelDaGuardia, poderDaEquipe } from "../game/economia";
+import { danoDaGuardia, nivelDaGuardia, poderDaEquipe } from "../game/economia";
 import { evolucaoDaGuardia } from "../game/fragmentos";
 import { gerarFase } from "../game/procedural";
 import { imagem } from "../game/imagens";
@@ -20,6 +20,13 @@ import {
 } from "../game/ui";
 import { definirClimaMusical, somClique } from "../game/sfx";
 import { t } from "../i18n/textos";
+
+function formatarDano(valor: number): string {
+  const arredondado = Math.round(valor * 10) / 10;
+  return Number.isInteger(arredondado)
+    ? String(arredondado)
+    : arredondado.toFixed(1).replace(".", ",");
+}
 
 export class CenaPreFase implements Cena {
   private readonly fase;
@@ -196,15 +203,14 @@ export class CenaPreFase implements Cena {
       ctx.font = "700 10px system-ui, sans-serif";
       const nome = guardia.nome.length > 10 ? `${guardia.nome.slice(0, 9)}…` : guardia.nome;
       ctx.fillText(nome, centro, 350);
+      const nivel = nivelDaGuardia(this.jogo.dados, guardia.id);
+      const evolucao = evolucaoDaGuardia(this.jogo.dados, guardia.id);
       ctx.fillStyle = "rgba(255,255,255,0.72)";
       ctx.font = "600 10px system-ui, sans-serif";
-      ctx.fillText(`Nv.${nivelDaGuardia(this.jogo.dados, guardia.id)}`, centro, 368);
-      const evolucao = evolucaoDaGuardia(this.jogo.dados, guardia.id);
-      if (evolucao > 0) {
-        ctx.fillStyle = "#ffd166";
-        ctx.font = "700 9px system-ui, sans-serif";
-        ctx.fillText(`Evo ${evolucao} · ×${2 ** evolucao}`, centro, 382);
-      }
+      ctx.fillText(`Nv.${nivel} · Evo ${evolucao}`, centro, 368);
+      ctx.fillStyle = "#9fdf8f";
+      ctx.font = "700 9px system-ui, sans-serif";
+      ctx.fillText(`⚔ ${formatarDano(danoDaGuardia(guardia, nivel, evolucao))}`, centro, 382);
     });
   }
 

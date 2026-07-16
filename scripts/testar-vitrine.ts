@@ -1,4 +1,5 @@
 import { GUARDIAS } from "../src/game/conteudo";
+import { poderDaEquipe } from "../src/game/economia";
 import { evolucaoDaGuardia } from "../src/game/fragmentos";
 import { gerarFase } from "../src/game/procedural";
 import { criarDadosVitrine, FASE_VITRINE } from "../src/game/vitrine";
@@ -17,6 +18,10 @@ afirmar(primeira.faseMaxima + 1 === FASE_VITRINE, "a fase 30 deve ser a próxima
 afirmar(gerarFase(FASE_VITRINE).ehChefe, "a vitrine deve abrir em uma fase de chefão");
 afirmar(primeira.caixasGratisDisponiveis >= 10, "a Caixa precisa estar explorável");
 afirmar(primeira.pityLendaria === 99, "a próxima Caixa deve demonstrar o pity");
+const poder = poderDaEquipe(GUARDIAS, primeira);
+const recomendado = gerarFase(FASE_VITRINE).poderRecomendado;
+afirmar(poder >= recomendado, "a vitrine deve ser vencível no poder recomendado");
+afirmar(poder <= recomendado * 1.2, "a vitrine não pode apagar o chefão antes da demonstração");
 
 primeira.capim = 0;
 afirmar(segunda.capim === 50_000, "cada abertura da vitrine precisa nascer isolada");

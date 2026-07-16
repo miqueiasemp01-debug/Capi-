@@ -13,10 +13,12 @@ export function criarDadosVitrine(): SaveData {
 
   dados.capim = 50_000;
   dados.gemas = 2_500;
-  dados.toqueNivel = 8;
-  dados.capiAtaqueNivel = 8;
-  dados.capiCalmaNivel = 8;
-  dados.guardiaNiveis = Object.fromEntries(ids.map((id) => [id, 8]));
+  // Perto do poder recomendado da fase 30: dá tempo de observar ataques e
+  // habilidades, enquanto Calma extra perdoa erros durante a demonstração.
+  dados.toqueNivel = 2;
+  dados.capiAtaqueNivel = 2;
+  dados.capiCalmaNivel = 6;
+  dados.guardiaNiveis = Object.fromEntries(ids.map((id) => [id, 2]));
   dados.guardiasPossuidas = [...ids];
   dados.fragmentosGuardia = Object.fromEntries(ids.map((id) => [id, TOTAL_EVOLUCAO_2]));
   dados.faseMaxima = FASE_VITRINE - 1;
