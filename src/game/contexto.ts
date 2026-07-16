@@ -13,6 +13,7 @@ export type Destino =
 // O roteamento concreto vive em main.ts pra evitar imports circulares.
 export interface Jogo {
   dados: SaveData;
+  modoVitrine: boolean;
   salvar(): void;
   irPara(destino: Destino): void;
 }

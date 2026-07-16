@@ -1,5 +1,5 @@
 import { LARGURA, ALTURA, type Cena } from "../game/motor";
-import type { Jogo } from "../game/contexto";
+import type { Destino, Jogo } from "../game/contexto";
 import { carregarImagens, imagem } from "../game/imagens";
 import { desenharImagemCobrindo } from "../game/desenhos";
 import { tracarRetanguloArredondado } from "../game/ui";
@@ -12,8 +12,12 @@ export class CenaSplash implements Cena {
   private alvo = 0; // progresso real do carregamento
   private exibido = 0; // progresso suavizado da barra
   private pronto = false;
+  private saiu = false;
 
-  constructor(private readonly jogo: Jogo) {
+  constructor(
+    private readonly jogo: Jogo,
+    private readonly destino: Destino = { tela: "titulo" },
+  ) {
     carregarImagens((fracao) => {
       this.alvo = fracao;
     }).then(() => {
@@ -24,8 +28,9 @@ export class CenaSplash implements Cena {
   atualizar(dt: number): void {
     this.tempo += dt;
     this.exibido += (this.alvo - this.exibido) * Math.min(1, dt * 10);
-    if (this.pronto && this.tempo >= EXIBICAO_MINIMA && this.exibido > 0.97) {
-      this.jogo.irPara({ tela: "titulo" });
+    if (!this.saiu && this.pronto && this.tempo >= EXIBICAO_MINIMA && this.exibido > 0.97) {
+      this.saiu = true;
+      this.jogo.irPara(this.destino);
     }
   }
 

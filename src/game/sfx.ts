@@ -5,10 +5,17 @@
 
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let trilhaGain: GainNode | null = null;
 let ruidoBuffer: AudioBuffer | null = null;
 let mutado = false;
 let vozesAtivas = 0;
 const LIMITE_VOZES = 14;
+
+export type ClimaMusical = "mapa" | "fase" | "chefe" | "caixa" | "surto" | "calma";
+let climaMusical: ClimaMusical = "mapa";
+let passoTrilha = 0;
+let proximaNotaEm = 0;
+let relogioTrilha: number | null = null;
 
 function garantirContexto(): AudioContext | null {
   try {
@@ -21,12 +28,16 @@ function garantirContexto(): AudioContext | null {
       masterGain = ctx.createGain();
       masterGain.gain.value = mutado ? 0 : 0.9;
       masterGain.connect(ctx.destination);
+      trilhaGain = ctx.createGain();
+      trilhaGain.gain.value = 1;
+      trilhaGain.connect(masterGain);
 
       // buffer de ruído reutilizável (chicote, splash, zumbido)
       const tamanho = Math.floor(ctx.sampleRate * 0.4);
       ruidoBuffer = ctx.createBuffer(1, tamanho, ctx.sampleRate);
       const dados = ruidoBuffer.getChannelData(0);
       for (let i = 0; i < tamanho; i++) dados[i] = Math.random() * 2 - 1;
+      iniciarRelogioDaTrilha(ctx);
     }
     if (ctx.state === "suspended") void ctx.resume();
     return ctx;
@@ -42,6 +53,109 @@ export function definirMute(valor: boolean): void {
 
 export function estaMutado(): boolean {
   return mutado;
+}
+
+// ---------------------------------------------------------------- trilha
+
+const PROGRESSOES: Record<ClimaMusical, number[][]> = {
+  mapa: [[60, 64, 67, 71], [57, 60, 64, 67], [53, 57, 60, 64], [55, 59, 62, 67]],
+  fase: [[60, 64, 67, 72], [57, 60, 64, 69], [53, 57, 60, 65], [55, 59, 62, 67]],
+  chefe: [[50, 53, 57, 62], [48, 52, 55, 60], [46, 50, 53, 58], [48, 51, 55, 60]],
+  caixa: [[65, 69, 72, 76], [67, 71, 74, 79], [64, 68, 71, 76], [69, 72, 76, 81]],
+  surto: [[50, 53, 56, 60], [48, 51, 55, 59], [46, 50, 53, 57], [47, 50, 54, 58]],
+  calma: [[60, 64, 67, 72], [62, 65, 69, 74], [64, 67, 71, 76], [67, 71, 74, 79]],
+};
+
+const BPM: Record<ClimaMusical, number> = {
+  mapa: 104,
+  fase: 122,
+  chefe: 128,
+  caixa: 116,
+  surto: 88,
+  calma: 108,
+};
+
+function frequenciaMidi(nota: number): number {
+  return 440 * 2 ** ((nota - 69) / 12);
+}
+
+function iniciarRelogioDaTrilha(c: AudioContext): void {
+  if (relogioTrilha !== null) return;
+  proximaNotaEm = c.currentTime + 0.06;
+  relogioTrilha = window.setInterval(() => {
+    if (!ctx || !trilhaGain) return;
+    const horizonte = ctx.currentTime + 0.48;
+    while (proximaNotaEm < horizonte) {
+      agendarPassoDaTrilha(ctx, proximaNotaEm);
+      proximaNotaEm += 60 / BPM[climaMusical] / 2;
+      passoTrilha = (passoTrilha + 1) % 16;
+    }
+  }, 120);
+}
+
+function agendarPassoDaTrilha(c: AudioContext, quando: number): void {
+  if (!trilhaGain || mutado) return;
+  const passo = passoTrilha;
+  const acordes = PROGRESSOES[climaMusical];
+  const acorde = acordes[Math.floor(passo / 4)];
+  const duracaoPasso = 60 / BPM[climaMusical] / 2;
+  const ativo = climaMusical !== "surto" || passo % 2 === 0;
+
+  // Camada quente e sustentada: dá identidade sem disputar com os efeitos.
+  if (passo % 4 === 0) {
+    acorde.slice(0, 3).forEach((nota, indice) => {
+      tom(trilhaGain!, c, {
+        freq: frequenciaMidi(nota - 12),
+        dur: duracaoPasso * 3.8,
+        vol: climaMusical === "chefe" ? 0.018 : 0.014,
+        tipo: indice === 0 ? "sine" : "triangle",
+        inicioEm: quando,
+      });
+    });
+    tom(trilhaGain, c, {
+      freq: frequenciaMidi(acorde[0] - 24),
+      dur: duracaoPasso * 1.7,
+      vol: climaMusical === "chefe" ? 0.065 : 0.045,
+      tipo: "triangle",
+      inicioEm: quando,
+      glideFreq: frequenciaMidi(acorde[0] - 24) * 0.98,
+    });
+  }
+
+  if (ativo && (climaMusical !== "mapa" || passo % 2 === 0)) {
+    const desenho = climaMusical === "chefe"
+      ? [0, 0, 1, 0, 2, 1, 3, 1]
+      : [0, 2, 1, 3, 2, 1, 3, 2];
+    const oitava = climaMusical === "caixa" || climaMusical === "calma" ? 12 : 0;
+    tom(trilhaGain, c, {
+      freq: frequenciaMidi(acorde[desenho[passo % desenho.length]] + oitava),
+      dur: duracaoPasso * 0.72,
+      vol: climaMusical === "fase" ? 0.038 : 0.03,
+      tipo: "triangle",
+      inicioEm: quando,
+    });
+  }
+
+  if ((climaMusical === "fase" || climaMusical === "chefe") && passo % 4 === 0) {
+    tom(trilhaGain, c, {
+      freq: climaMusical === "chefe" ? 105 : 125,
+      dur: 0.14,
+      vol: climaMusical === "chefe" ? 0.075 : 0.05,
+      tipo: "sine",
+      glideFreq: 48,
+      inicioEm: quando,
+    });
+  }
+  if ((climaMusical === "fase" || climaMusical === "chefe" || climaMusical === "caixa") && passo % 2 === 1) {
+    ruido(trilhaGain, c, 0.055, climaMusical === "chefe" ? 0.022 : 0.014, 4200, "highpass", quando);
+  }
+}
+
+export function definirClimaMusical(clima: ClimaMusical): void {
+  if (climaMusical === clima) return;
+  climaMusical = clima;
+  passoTrilha = 0;
+  if (ctx) proximaNotaEm = ctx.currentTime + 0.04;
 }
 
 // Toca uma voz respeitando o limite; devolve destino pra conectar ou null.
@@ -68,10 +182,11 @@ interface OpcoesTom {
   tipo?: OscillatorType;
   inicioAtraso?: number;
   glideFreq?: number;
+  inicioEm?: number;
 }
 
 function tom(destino: AudioNode, c: AudioContext, o: OpcoesTom): void {
-  const inicio = c.currentTime + (o.inicioAtraso ?? 0);
+  const inicio = (o.inicioEm ?? c.currentTime) + (o.inicioAtraso ?? 0);
   const fim = inicio + o.dur;
   const osc = c.createOscillator();
   const g = c.createGain();
@@ -87,9 +202,17 @@ function tom(destino: AudioNode, c: AudioContext, o: OpcoesTom): void {
   osc.stop(fim + 0.03);
 }
 
-function ruido(destino: AudioNode, c: AudioContext, dur: number, vol: number, corte: number, tipo: BiquadFilterType = "bandpass"): void {
+function ruido(
+  destino: AudioNode,
+  c: AudioContext,
+  dur: number,
+  vol: number,
+  corte: number,
+  tipo: BiquadFilterType = "bandpass",
+  inicioEm?: number,
+): void {
   if (!ruidoBuffer) return;
-  const inicio = c.currentTime;
+  const inicio = inicioEm ?? c.currentTime;
   const fonte = c.createBufferSource();
   fonte.buffer = ruidoBuffer;
   const filtro = c.createBiquadFilter();
@@ -122,7 +245,9 @@ export function somChicote(): void {
   const v = abrirVoz();
   if (!v) return;
   ruido(v.destino, v.ctx, 0.09, 0.5, 2600, "highpass");
+  ruido(v.destino, v.ctx, 0.13, 0.13, 620, "bandpass");
   tom(v.destino, v.ctx, { freq: 320, dur: 0.08, vol: 0.12, tipo: "square", glideFreq: 900 });
+  tom(v.destino, v.ctx, { freq: 120, dur: 0.11, vol: 0.08, tipo: "triangle", glideFreq: 82 });
   fecharVozEm(v.ctx, v.ctx.currentTime + 0.12);
 }
 
@@ -141,6 +266,7 @@ export function somCafe(): void {
   if (!v) return;
   ruido(v.destino, v.ctx, 0.16, 0.28, 900, "bandpass");
   tom(v.destino, v.ctx, { freq: 420, dur: 0.12, vol: 0.08, tipo: "triangle", glideFreq: 240 });
+  tom(v.destino, v.ctx, { freq: 1760, dur: 0.15, vol: 0.035, tipo: "sine", inicioAtraso: 0.025, glideFreq: 1320 });
   fecharVozEm(v.ctx, v.ctx.currentTime + 0.2);
 }
 
@@ -182,6 +308,7 @@ export function somDormir(): void {
   if (!v) return;
   tom(v.destino, v.ctx, { freq: 880, dur: 0.18, vol: 0.08, tipo: "sine", glideFreq: 1100 });
   tom(v.destino, v.ctx, { freq: 150, dur: 0.28, vol: 0.05, tipo: "triangle", glideFreq: 110, inicioAtraso: 0.1 });
+  ruido(v.destino, v.ctx, 0.34, 0.025, 320, "lowpass");
   fecharVozEm(v.ctx, v.ctx.currentTime + 0.4);
 }
 
@@ -221,6 +348,7 @@ export function somClique(): void {
   const v = abrirVoz();
   if (!v) return;
   tom(v.destino, v.ctx, { freq: 520, dur: 0.05, vol: 0.06, tipo: "sine", glideFreq: 640 });
+  tom(v.destino, v.ctx, { freq: 1040, dur: 0.045, vol: 0.025, tipo: "triangle", inicioAtraso: 0.012 });
   fecharVozEm(v.ctx, v.ctx.currentTime + 0.07);
 }
 

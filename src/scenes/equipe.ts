@@ -25,7 +25,7 @@ import { imagem } from "../game/imagens";
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharEstrela, desenharFundoPantanal } from "../game/desenhos";
 import { guardiasAtivas, sonequinhaBloqueada } from "../game/evento";
-import { somConquista, somClique } from "../game/sfx";
+import { definirClimaMusical, somConquista, somClique } from "../game/sfx";
 import { mostrarToast, desenharToasts } from "../game/toasts";
 import {
   CORES_RARIDADE,
@@ -73,6 +73,7 @@ export class CenaEquipe implements Cena {
   private yPorGuardia: Record<string, number> = {};
 
   constructor(private readonly jogo: Jogo) {
+    definirClimaMusical("mapa");
     if (!jogo.dados.tutoriais["evoluir"] && jogo.dados.faseMaxima >= 1) {
       mostrarToast(t("tutorial_evoluir"));
       jogo.dados.tutoriais["evoluir"] = true;

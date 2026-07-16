@@ -22,6 +22,7 @@ export class CenaCutscene implements Cena {
     private readonly tipo: "surto" | "cura",
   ) {
     this.totalPaineis = tipo === "surto" ? 2 : 1;
+    sfx.definirClimaMusical(tipo === "surto" ? "surto" : "calma");
   }
 
   atualizar(dt: number): void {

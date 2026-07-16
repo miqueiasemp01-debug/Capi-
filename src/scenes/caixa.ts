@@ -39,7 +39,9 @@ export class CenaCaixa implements Cena {
   private mostrarChances = false;
   private botoes: Botao[] = [];
 
-  constructor(private readonly jogo: Jogo) {}
+  constructor(private readonly jogo: Jogo) {
+    sfx.definirClimaMusical("caixa");
+  }
 
   atualizar(dt: number): void {
     this.tempo += dt;

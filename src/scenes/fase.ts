@@ -156,6 +156,7 @@ export class CenaFase implements Cena {
   ) {
     if (sincronizarEvento(jogo.dados)) jogo.salvar();
     this.fase = gerarFase(numero);
+    sfx.definirClimaMusical(this.fase.ehChefe ? "chefe" : "fase");
     this.janelaResgateAoEntrar =
       this.fase.numero === 10 && missaoResgateAtiva(jogo.dados)
         ? jogo.dados.evento.resgateAte

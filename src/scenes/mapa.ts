@@ -17,7 +17,7 @@ import { desenharBotao, desenharPainelVidro, tracarRetanguloArredondado, dentroD
 import { desenharPilulaRecurso } from "../game/icones";
 import { desenharFundoPantanal, desenharLendariaProcedural } from "../game/desenhos";
 import { imagem } from "../game/imagens";
-import { estaMutado, definirMute, somClique } from "../game/sfx";
+import { estaMutado, definirClimaMusical, definirMute, somClique } from "../game/sfx";
 import { ehDebug, adiantarUmaHora, formatarIntervalo } from "../game/tempo";
 import { FASE_RESGATE } from "../game/evento";
 import { t } from "../i18n/textos";
@@ -40,6 +40,7 @@ export class CenaMapa implements Cena {
   private avisoCompraAte = -9;
 
   constructor(private readonly jogo: Jogo) {
+    definirClimaMusical("mapa");
     if (prepararFundacaoJornada(jogo.dados)) jogo.salvar();
     // A oferta tem flag própria e só abre automaticamente uma vez.
     if (ofertaSerenaAtiva(jogo.dados) && !jogo.dados.evento.ofertaSerenaVista) this.mostrarOferta = true;

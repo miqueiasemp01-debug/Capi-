@@ -18,7 +18,7 @@ import {
   tracarRetanguloArredondado,
   type Botao,
 } from "../game/ui";
-import { somClique } from "../game/sfx";
+import { definirClimaMusical, somClique } from "../game/sfx";
 import { t } from "../i18n/textos";
 
 export class CenaPreFase implements Cena {
@@ -33,6 +33,7 @@ export class CenaPreFase implements Cena {
     private readonly numero: number,
   ) {
     this.fase = gerarFase(numero);
+    definirClimaMusical("mapa");
     this.equipe = guardiasAtivas(GUARDIAS, jogo.dados);
     this.poderAtual = poderDaEquipe(this.equipe, jogo.dados);
   }
@@ -63,6 +64,20 @@ export class CenaPreFase implements Cena {
     ctx.fillText(`${t("fase_rotulo")} ${this.numero}`, 18, 38);
     desenharPilulaRecurso(ctx, LARGURA - 14, 38, "capim", this.jogo.dados.capim);
     desenharPilulaRecurso(ctx, LARGURA - 110, 38, "gema", this.jogo.dados.gemas);
+
+    if (this.jogo.modoVitrine) {
+      const larguraSelo = 196;
+      tracarRetanguloArredondado(ctx, (LARGURA - larguraSelo) / 2, 53, larguraSelo, 20, 10);
+      ctx.fillStyle = "rgba(255, 209, 102, 0.2)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 209, 102, 0.65)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ffe39a";
+      ctx.font = "800 10px system-ui, sans-serif";
+      ctx.fillText("VITRINE · SAVE ISOLADO", LARGURA / 2, 63);
+    }
 
     this.painel(ctx, 18, 76, LARGURA - 36, 158, this.fase.ehChefe ? "#ffd166" : "#7dd3a0");
     ctx.textAlign = "left";

@@ -3,19 +3,23 @@ import type { Jogo } from "../game/contexto";
 import { desenharCapi, desenharImagemCobrindo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharBotao, desenharPainelVidro } from "../game/ui";
+import { definirClimaMusical, somClique } from "../game/sfx";
 import { t } from "../i18n/textos";
 
 export class CenaTitulo implements Cena {
   private tempo = 0;
   private fundoFallback: CanvasGradient | null = null;
 
-  constructor(private readonly jogo: Jogo) {}
+  constructor(private readonly jogo: Jogo) {
+    definirClimaMusical("mapa");
+  }
 
   atualizar(dt: number): void {
     this.tempo += dt;
   }
 
   aoTocar(_x: number, _y: number): void {
+    somClique();
     this.jogo.irPara({ tela: "mapa" });
   }
 
