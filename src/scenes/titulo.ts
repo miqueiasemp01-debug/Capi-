@@ -4,6 +4,7 @@ import { desenharCapi, desenharImagemCobrindo } from "../game/desenhos";
 import { imagem } from "../game/imagens";
 import { desenharBotao, desenharPainelVidro } from "../game/ui";
 import { definirClimaMusical, somClique } from "../game/sfx";
+import { iniciarLoginSilenciosoTikTok } from "../game/plataforma-tiktok";
 import { t } from "../i18n/textos";
 
 export class CenaTitulo implements Cena {
@@ -20,6 +21,7 @@ export class CenaTitulo implements Cena {
 
   aoTocar(_x: number, _y: number): void {
     somClique();
+    void iniciarLoginSilenciosoTikTok();
     this.jogo.irPara({ tela: "mapa" });
   }
 

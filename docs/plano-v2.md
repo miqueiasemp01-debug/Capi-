@@ -296,6 +296,12 @@ Protótipo de referência: referencia/prototipo-v02.html
 
 ## Changelog
 
+### v2.4 — Fundação TikTok e rewarded 2× TUDO
+- Build separado para TikTok Mini Games, com caminhos relativos, SDK como primeiro script, configuração vertical e verificação automatizada do pacote.
+- Rewarded na conclusão da missão duplica uma única vez todo capim e todas as gemas realmente recebidas naquela partida, inclusive chefe e primeira conquista 3★.
+- Caixa grátis da 10ª partida, fragmentos, pity, evento e compras não são duplicados; cancelamento ou vídeo incompleto não concede recompensa.
+- Ponte de login entrega somente o `code` a um backend HTTPS; `client_secret`, tokens e economia validada permanecem fora do navegador.
+
 ### v2.3 — Fragmentos, Caixa recorrente e oferta direta
 - Estagiário deixa de ser recompensa automática; concessões da 7A migram para 1 fragmento com devolução idempotente do capim gasto.
 - Caixa libera na captura da Sonequinha, custa 25 gemas e entrega 60% capim / 35% 1 fragmento / 4,5% 10 fragmentos / 0,5% 10 fragmentos da Luz.

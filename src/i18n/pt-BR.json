@@ -96,5 +96,12 @@
   "pre_fase_primeira_vitoria": "na primeira vitória",
   "pre_fase_primeira_3": "na primeira conquista",
   "pre_fase_enfrentar": "ENFRENTAR CHEFÃO",
+  "anuncio_duplicar": "🎬 2× TUDO",
+  "anuncio_abrindo": "ABRINDO VÍDEO…",
+  "anuncio_aplicado": "✓ RECOMPENSA 2× RECEBIDA",
+  "anuncio_recompensa_recebida": "2× aplicado: capim e gemas duplicados!",
+  "anuncio_indisponivel": "Vídeo recompensado disponível dentro do TikTok.",
+  "anuncio_cancelado": "Assista até o fim para receber 2×.",
+  "anuncio_erro": "O vídeo não abriu. Tente novamente.",
   "debug_hora": "+1h"
 }

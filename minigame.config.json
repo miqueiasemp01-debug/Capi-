@@ -1,0 +1,16 @@
+{
+  "client_key": "PREENCHER_CLIENT_KEY_DO_PORTAL",
+  "orientation": "VERTICAL",
+  "navbar": {
+    "bgColorLight": "#0b3d2e",
+    "bgColorDark": "#0b3d2e"
+  },
+  "dev": {
+    "host": "localhost",
+    "port": 4173
+  },
+  "build": {
+    "outputDir": "dist-tiktok",
+    "htmlEntry": "index.html"
+  }
+}

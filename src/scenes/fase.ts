@@ -22,6 +22,17 @@ import { desenharCapi, desenharChefe, desenharGuardia, desenharImagemCobrindo, d
 import { imagem } from "../game/imagens";
 import { desenharIconeCapim, desenharPilulaRecurso } from "../game/icones";
 import { mostrarToast, desenharToasts } from "../game/toasts";
+import {
+  aplicarDuplicacaoDaPartida,
+  pacoteDuplicavelDaVitoria,
+  temRecompensaDuplicavel,
+  type ControleDuplicacao,
+  type PacoteDuplicavel,
+} from "../game/recompensa-anuncio";
+import {
+  anuncioRecompensadoConfigurado,
+  exibirAnuncioRecompensado,
+} from "../game/plataforma-tiktok";
 import * as sfx from "../game/sfx";
 import {
   CORES_RARIDADE,
@@ -115,6 +126,7 @@ interface Particula {
 }
 
 type EstadoFase = "jogando" | "vitoria" | "derrota";
+type EstadoAnuncio = "pronto" | "abrindo" | "aplicado";
 
 export class CenaFase implements Cena {
   private readonly fase: FaseGerada;
@@ -129,11 +141,12 @@ export class CenaFase implements Cena {
   private tratados = 0;
   private totalInimigos: number;
   private curou = false; // curou a Sonequinha nesta vitória (chefão da 10)
-  private gemasBonus3 = 0; // +gemas de 3★ pela 1ª vez
-  private gemasChefeGanhas = 0;
   private ganhouCaixaGratis = false;
   private progressoCaixaGratis = 0;
   private readonly janelaResgateAoEntrar: number;
+  private pacoteDuplicavel: PacoteDuplicavel = { capim: 0, gemas: 0 };
+  private controleDuplicacao: ControleDuplicacao = { aplicada: false };
+  private estadoAnuncio: EstadoAnuncio = "pronto";
 
   private proximoEvento = 0;
   private inimigos: Inimigo[] = [];
@@ -582,8 +595,7 @@ export class CenaFase implements Cena {
       this.capimColetado,
       this.janelaResgateAoEntrar,
     );
-    this.gemasChefeGanhas = recompensa.gemasChefeGanhas;
-    this.gemasBonus3 = recompensa.gemasBonus3;
+    this.pacoteDuplicavel = pacoteDuplicavelDaVitoria(recompensa);
     this.ganhouCaixaGratis = recompensa.ganhouCaixaGratis;
     this.progressoCaixaGratis = progressoParaCaixaGratis(this.jogo.dados);
     this.curou = recompensa.curouSonequinha;
@@ -596,6 +608,7 @@ export class CenaFase implements Cena {
     this.limparTransitorios();
     sfx.somDerrota();
     this.jogo.dados.capim += this.capimColetado;
+    this.pacoteDuplicavel = { capim: this.capimColetado, gemas: 0 };
     this.ganhouCaixaGratis = registrarPartidaConcluida(this.jogo.dados);
     this.progressoCaixaGratis = progressoParaCaixaGratis(this.jogo.dados);
     this.jogo.salvar();
@@ -605,10 +618,15 @@ export class CenaFase implements Cena {
 
   aoTocar(x: number, y: number): void {
     if (this.estado !== "jogando") {
+      if (this.estadoAnuncio === "abrindo") return;
       for (const botao of this.botoesFim) {
         if (!dentroDoBotao(botao, x, y)) continue;
         registrarPressao(botao.acao);
         sfx.somClique();
+        if (botao.acao === "anuncio") {
+          void this.duplicarComAnuncio();
+          return;
+        }
         // curou a Sonequinha? qualquer botão leva primeiro à cutscene de cura
         if (this.curou) {
           this.jogo.irPara({ tela: "cutscene", tipo: "cura" });
@@ -631,6 +649,31 @@ export class CenaFase implements Cena {
     }
 
     this.toqueDeCalma(x, y);
+  }
+
+  private async duplicarComAnuncio(): Promise<void> {
+    if (
+      this.estadoAnuncio !== "pronto" ||
+      this.controleDuplicacao.aplicada ||
+      !temRecompensaDuplicavel(this.pacoteDuplicavel)
+    ) return;
+
+    this.estadoAnuncio = "abrindo";
+    const resultado = await exibirAnuncioRecompensado();
+    if (resultado === "concluido") {
+      if (aplicarDuplicacaoDaPartida(this.jogo.dados, this.pacoteDuplicavel, this.controleDuplicacao)) {
+        this.jogo.salvar();
+        this.estadoAnuncio = "aplicado";
+        sfx.somConquista();
+        mostrarToast(t("anuncio_recompensa_recebida"));
+        return;
+      }
+    }
+
+    this.estadoAnuncio = "pronto";
+    if (resultado === "indisponivel") mostrarToast(t("anuncio_indisponivel"));
+    else if (resultado === "cancelado") mostrarToast(t("anuncio_cancelado"));
+    else mostrarToast(t("anuncio_erro"));
   }
 
   private toqueDeCalma(x: number, y: number): void {
@@ -1104,6 +1147,30 @@ export class CenaFase implements Cena {
     }
   }
 
+  private desenharBotaoAnuncio(
+    ctx: CanvasRenderingContext2D,
+    painel: { x: number; y: number; w: number },
+    y: number,
+  ): void {
+    if (!temRecompensaDuplicavel(this.pacoteDuplicavel)) return;
+
+    const botao: Botao = { x: painel.x + 30, y, w: painel.w - 60, h: 44, acao: "anuncio" };
+    const configurado = anuncioRecompensadoConfigurado();
+    const rotulo = this.estadoAnuncio === "aplicado"
+      ? t("anuncio_aplicado")
+      : this.estadoAnuncio === "abrindo"
+        ? t("anuncio_abrindo")
+        : configurado
+          ? t("anuncio_duplicar")
+          : `${t("anuncio_duplicar")} · TIKTOK`;
+    desenharBotao(ctx, botao, rotulo, {
+      cor: "#d77a2f",
+      tamanhoFonte: 15,
+      desativado: this.estadoAnuncio !== "pronto",
+    });
+    if (this.estadoAnuncio === "pronto") this.botoesFim.push(botao);
+  }
+
   private desenharFim(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = "rgba(6, 26, 20, 0.78)";
     ctx.fillRect(0, 0, LARGURA, ALTURA);
@@ -1137,20 +1204,16 @@ export class CenaFase implements Cena {
 
       ctx.fillStyle = "#ffffff";
       ctx.font = "600 16px system-ui, sans-serif";
-      const textoCapim = `+${this.fase.capimVitoria + this.capimColetado}`;
+      const multiplicadorRecompensa = this.controleDuplicacao.aplicada ? 2 : 1;
+      const textoCapim = `+${this.pacoteDuplicavel.capim * multiplicadorRecompensa}`;
       ctx.fillText(textoCapim, CENTRO_X - 30, painel.y + 140);
       desenharIconeCapim(ctx, CENTRO_X - 30 + ctx.measureText(textoCapim).width / 2 + 12, painel.y + 139, 16);
 
-      if (this.gemasChefeGanhas > 0) {
-        // gemas de chefe são exibidas somente quando realmente foram pagas
+      const gemasRecebidas = this.pacoteDuplicavel.gemas * multiplicadorRecompensa;
+      if (gemasRecebidas > 0) {
         ctx.fillStyle = "#8fdcff";
         ctx.font = "700 16px system-ui, sans-serif";
-        ctx.fillText(`🎁 +${this.gemasChefeGanhas} 💎`, CENTRO_X + 40, painel.y + 140);
-      } else if (this.gemasBonus3 > 0) {
-        // bônus de gemas pela primeira 3★ na fase
-        ctx.fillStyle = "#8fdcff";
-        ctx.font = "700 15px system-ui, sans-serif";
-        ctx.fillText(`3★ +${this.gemasBonus3} 💎`, CENTRO_X + 44, painel.y + 140);
+        ctx.fillText(`🎁 +${gemasRecebidas} 💎`, CENTRO_X + 40, painel.y + 140);
       }
 
       ctx.fillStyle = this.ganhouCaixaGratis ? "#ffd166" : "rgba(255,255,255,0.72)";
@@ -1163,15 +1226,17 @@ export class CenaFase implements Cena {
         painel.y + 164,
       );
 
-      const proxima: Botao = { x: painel.x + 30, y: painel.y + 178, w: painel.w - 60, h: 52, acao: "proxima" };
+      this.desenharBotaoAnuncio(ctx, painel, painel.y + 178);
+
+      const proxima: Botao = { x: painel.x + 30, y: painel.y + 230, w: painel.w - 60, h: 48, acao: "proxima" };
       desenharBotao(ctx, proxima, t("botao_proxima"), { cor: "#3d9c63" });
       this.botoesFim.push(proxima);
 
-      const mapa: Botao = { x: painel.x + 30, y: painel.y + 240, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
+      const mapa: Botao = { x: painel.x + 30, y: painel.y + 288, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
       desenharBotao(ctx, mapa, t("botao_mapa"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(mapa);
 
-      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 240, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
+      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 288, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
       desenharBotao(ctx, repetir, t("botao_repetir"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(repetir);
     } else {
@@ -1182,7 +1247,8 @@ export class CenaFase implements Cena {
       if (this.capimColetado > 0) {
         ctx.fillStyle = "#9fdf8f";
         ctx.font = "600 15px system-ui, sans-serif";
-        const textoCapim = `${t("fase_capim_ganho")}: +${this.capimColetado}`;
+        const multiplicadorRecompensa = this.controleDuplicacao.aplicada ? 2 : 1;
+        const textoCapim = `${t("fase_capim_ganho")}: +${this.pacoteDuplicavel.capim * multiplicadorRecompensa}`;
         ctx.fillText(textoCapim, CENTRO_X - 10, painel.y + 124);
         desenharIconeCapim(ctx, CENTRO_X + ctx.measureText(textoCapim).width / 2 + 4, painel.y + 123, 14);
       }
@@ -1197,15 +1263,17 @@ export class CenaFase implements Cena {
         painel.y + 146,
       );
 
-      const evoluir: Botao = { x: painel.x + 30, y: painel.y + 170, w: painel.w - 60, h: 56, acao: "equipe" };
+      this.desenharBotaoAnuncio(ctx, painel, painel.y + 165);
+
+      const evoluir: Botao = { x: painel.x + 30, y: painel.y + 217, w: painel.w - 60, h: 50, acao: "equipe" };
       desenharBotao(ctx, evoluir, t("botao_evoluir"), { cor: "#3d9c63", tamanhoFonte: 20, icone: "capim" });
       this.botoesFim.push(evoluir);
 
-      const mapa: Botao = { x: painel.x + 30, y: painel.y + 238, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
+      const mapa: Botao = { x: painel.x + 30, y: painel.y + 278, w: (painel.w - 74) / 2, h: 42, acao: "mapa" };
       desenharBotao(ctx, mapa, t("botao_mapa"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(mapa);
 
-      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 238, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
+      const repetir: Botao = { x: painel.x + 44 + (painel.w - 74) / 2, y: painel.y + 278, w: (painel.w - 74) / 2, h: 42, acao: "repetir" };
       desenharBotao(ctx, repetir, t("botao_repetir"), { cor: "#26604a", tamanhoFonte: 14 });
       this.botoesFim.push(repetir);
     }

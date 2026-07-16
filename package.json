@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:tiktok": "tsc -b && vite build --mode tiktok",
     "preview": "vite preview",
     "simular": "tsx scripts/simular.ts",
     "testar:7a": "tsx scripts/testar-sessao-7a.ts",
     "testar:7b": "tsx scripts/testar-sessao-7b.ts",
     "testar:vitrine": "tsx scripts/testar-vitrine.ts",
+    "testar:tiktok": "tsx scripts/testar-tiktok.ts",
+    "verificar:tiktok": "node scripts/verificar-pacote-tiktok.mjs",
     "assets": "node scripts/gerar-assets.mjs"
   },
   "devDependencies": {

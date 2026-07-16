@@ -4,6 +4,7 @@ import { carregarImagens, imagem } from "../game/imagens";
 import { desenharImagemCobrindo } from "../game/desenhos";
 import { tracarRetanguloArredondado } from "../game/ui";
 import { t } from "../i18n/textos";
+import { informarCarregamentoTikTok } from "../game/plataforma-tiktok";
 
 const EXIBICAO_MINIMA = 0.9;
 
@@ -20,8 +21,10 @@ export class CenaSplash implements Cena {
   ) {
     carregarImagens((fracao) => {
       this.alvo = fracao;
+      informarCarregamentoTikTok(fracao);
     }).then(() => {
       this.pronto = true;
+      informarCarregamentoTikTok(1);
     });
   }
 
